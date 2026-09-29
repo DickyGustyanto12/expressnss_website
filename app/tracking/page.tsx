@@ -1,3 +1,5 @@
+"use client";
+
 import { Search, X, Clock, MapPin, Phone, User, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
