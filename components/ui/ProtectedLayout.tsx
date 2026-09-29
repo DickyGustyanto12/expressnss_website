@@ -1,9 +1,34 @@
-import { Navigate, Outlet } from 'react-router-dom';
+"use client";
 
-const ProtectedLayout = () => {
-    const isAuthenticated = localStorage.getItem('isLoggedIn') === 'true';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-    return isAuthenticated ? <Outlet /> : <Navigate to="/internal" replace />;
-};
+export default function ProtectedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-export default ProtectedLayout;
+  useEffect(() => {
+    const statusLogin = localStorage.getItem("isLoggedIn") === "true";
+    if (!statusLogin) {
+      router.replace("/internal");
+    } else {
+      setIsAuthenticated(true);
+    }
+    setIsLoading(false);
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <p className="text-gray-600 font-medium">Memeriksa akses...</p>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <>{children}</> : null;
+}

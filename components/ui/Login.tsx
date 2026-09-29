@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { Lock, Mail } from "lucide-react";
 import Swal from "sweetalert2";
 import Banner2 from "../assets/banner2.webp";
@@ -8,7 +10,7 @@ import Logo from "../assets/logoexpress.webp";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const daftarAkunDummy = [
     { email: "admin@nssexpress.co.id", password: "123456" },
@@ -34,7 +36,7 @@ const Login = () => {
         color: "#31371fff",
         background: "#ffffff",
       }).then(() => {
-        navigate("/internal/dashboard");
+        router.push("/internal/dashboard");
       });
     } else {
       Swal.fire({
@@ -56,7 +58,7 @@ const Login = () => {
           <div className="text-center mb-8">
             <div className="flex justify-center">
               <img
-                src={Logo}
+                src={Logo.src}
                 alt="Logo NSS Express"
                 className="lg:scale-60 object-contain"
               />
@@ -119,7 +121,7 @@ const Login = () => {
 
         <div className="hidden lg:block relative bg-gray-900">
           <img
-            src={Banner2}
+            src={Banner2.src}
             alt="Banner Logistik"
             className="absolute inset-0 w-full h-full object-cover opacity-80"
           />
