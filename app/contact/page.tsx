@@ -1,3 +1,5 @@
+"use client";
+
 import { motion } from "framer-motion";
 import { MessageSquareText, Headphones, ArrowRight } from "lucide-react";
 
