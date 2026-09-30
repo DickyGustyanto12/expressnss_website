@@ -1,3 +1,5 @@
+"use client";
+
 import { Search, X, Clock, MapPin, Phone, User, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,85 +11,70 @@ const Tracking = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [isModalLoading, setIsModalLoading] = useState(false);
 
-  const dataDummy: Record<string, any> = {
-    E12345678: {
-      awb: "E12345678",
-      status: "Dalam Pengantaran",
-      pengirim: {
-        nama: "NSS Express - Slipi",
-        alamat: "Jl. Letjen S. Parman No. 28, Slipi, Jakarta Barat",
-        noHp: "+62 21-555-0192",
-      },
-      penerima: {
-        nama: "Siti Rahma",
-        alamat: "Jl. Ir. H. Juanda No. 120, Dago, Bandung",
-        noHp: "+62 857-9876-5432",
-      },
-      riwayat: [
-        {
-          tanggal: "23 Sep 2026",
-          jam: "14:15",
-          keterangan:
-            "Kurir lokal sedang melakukan pengantaran paket menuju alamat penerima di Bandung.",
-        },
-        {
-          tanggal: "23 Sep 2026",
-          jam: "08:30",
-          keterangan:
-            "Paket telah keluar dari Hub Transit NSS Bandung dan diserahterimakan ke kurir pengantaran.",
-        },
-        {
-          tanggal: "22 Sep 2026",
-          jam: "22:00",
-          keterangan:
-            "Paket tiba dan telah melalui proses pemindaian (scanning) di Hub Transit Utama NSS Express Kota Bandung.",
-        },
-        {
-          tanggal: "22 Sep 2026",
-          jam: "16:45",
-          keterangan:
-            "Paket sedang dalam perjalanan via armada darat tol Cipularang menuju kota Bandung.",
-        },
-        {
-          tanggal: "22 Sep 2026",
-          jam: "11:30",
-          keterangan:
-            "Paket diberangkatkan dari Sorting Center NSS Slipi, Jakarta Barat.",
-        },
-        {
-          tanggal: "22 Sep 2026",
-          jam: "09:00",
-          keterangan:
-            "Paket telah diterima di counter NSS Slipi, Jakarta Barat dan divalidasi oleh petugas.",
-        },
-      ],
-    },
-  };
-
-  const handleCari = (e?: React.FormEvent) => {
+  const handleCari = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const keyword = kataKunci.trim();
     if (!keyword) return;
 
-    // Langsung buka modal dalam keadaan loading
     setModalBuka(true);
     setIsModalLoading(true);
     setHasilTracking(null);
     setErrorMsg("");
 
-    // Simulasi proses pencarian data di dalam modal
-    setTimeout(() => {
-      if (dataDummy[keyword]) {
-        setHasilTracking(dataDummy[keyword]);
+    try {
+      // Memanggil API Route internal Next.js
+      const response = await fetch("/api/tracking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ keyword }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Gagal mengambil data dari server");
+      }
+
+      const data = await response.json();
+
+      if (data && data.Detail && data.Detail.length > 0) {
+        const formattedData = {
+          awb: keyword,
+          status: data.Detail[0].Keterangan || "Dalam Proses",
+          pengirim: {
+            nama: "NSS Express Center",
+            alamat: "Kantor Cabang / Sorting Center",
+            noHp: "-",
+          },
+          penerima: {
+            nama: data.Detail[0].Nama || "-",
+            alamat: "-",
+            noHp: "-",
+          },
+          riwayat: data.Detail.map((item: any) => ({
+            tanggal: item.Tanggal || "",
+            jam: item.Jam || "",
+            keterangan: item.Keterangan || "",
+          })),
+        };
+
+        setHasilTracking(formattedData);
         setErrorMsg("");
       } else {
         setHasilTracking(null);
         setErrorMsg(
-          "Nomor resi tidak ditemukan. Silakan gunakan nomor uji coba: E12345678",
+          "Nomor resi tidak ditemukan. Silakan periksa kembali nomor resi Anda.",
         );
       }
+    } catch (error) {
+      console.error("Error fetching tracking:", error);
+      setHasilTracking(null);
+      setErrorMsg(
+        "Terjadi kesalahan koneksi ke server pelacakan. Pastikan jaringan terhubung.",
+      );
+    } finally {
       setIsModalLoading(false);
-    }, 800);
+    }
   };
 
   return (
