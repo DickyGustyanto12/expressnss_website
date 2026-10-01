@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import {
   Container,
@@ -18,7 +20,7 @@ const CekOngkir = () => {
   const [hasilOngkir, setHasilOngkir] = useState<any[] | null>(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
 
-  const handleCekOngkir = (e: React.FormEvent) => {
+  const handleCekOngkir = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!berat.trim() || !kotaAsal.trim() || !kotaTujuan.trim()) {
@@ -33,34 +35,57 @@ const CekOngkir = () => {
       return;
     }
 
-    // Buka modal seketika dalam keadaan loading
     setModalBuka(true);
     setIsModalLoading(true);
     setHasilOngkir(null);
 
-    // Simulasi proses perhitungan tarif di dalam modal
-    setTimeout(() => {
-      const beratNum = parseFloat(berat) || 1;
-      setHasilOngkir([
-        {
-          layanan: "Reguler (REG)",
-          estimasi: "2-3 Hari",
-          harga: `Rp ${(15000 * beratNum).toLocaleString("id-ID")}`,
+    try {
+      const response = await fetch("/api/cek-ongkir", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        {
-          layanan: "Next Day (NEXT)",
-          estimasi: "1 Hari",
-          harga: `Rp ${(35000 * beratNum).toLocaleString("id-ID")}`,
-        },
-      ]);
+        body: JSON.stringify({
+          berat,
+          asal: kotaAsal,
+          tujuan: kotaTujuan,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || data.error || "Gagal mengambil data tarif",
+        );
+      }
+
+      const formattedData = data.layanan.map((item: any) => ({
+        layanan: item.nama,
+        estimasi: item.estimasi,
+        harga: `Rp ${item.tarif.toLocaleString("id-ID")}`,
+      }));
+
+      setHasilOngkir(formattedData);
+    } catch (error: any) {
+      setModalBuka(false);
+      Swal.fire({
+        title: "Gagal",
+        text: error.message || "Terjadi kesalahan pada server",
+        icon: "error",
+        confirmButtonColor: "#FFCC00",
+        color: "#1f2937",
+        background: "#ffffff",
+      });
+    } finally {
       setIsModalLoading(false);
-    }, 800);
+    }
   };
 
   return (
     <div className="bg-black py-16 px-4 md:px-8">
       <div className="text-center max-w-3xl mx-auto">
-        <span className="bg-[#FFCC00] text-black font-bold py-1 px-3 rounded text-sm mb-4 inline-block">
+        <span className="bg-[#FFCC00] text-black font-bold py-1 px-3 rounded-sm text-sm mb-4 inline-block">
           # Cek Ongkir
         </span>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mt-2 mb-3">
@@ -78,7 +103,7 @@ const CekOngkir = () => {
               Berat Barang (Kg)
             </label>
             <div className="flex w-full shadow-sm">
-              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-md">
+              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-sm">
                 <Container size={20} />
               </div>
               <input
@@ -86,7 +111,7 @@ const CekOngkir = () => {
                 value={berat}
                 onChange={(e) => setBerat(e.target.value)}
                 placeholder="Contoh: 1"
-                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-md text-sm"
+                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-sm text-sm"
               />
             </div>
           </div>
@@ -96,7 +121,7 @@ const CekOngkir = () => {
               Kota Asal Pengiriman
             </label>
             <div className="flex w-full shadow-sm">
-              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-md">
+              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-sm">
                 <MapPinned size={20} />
               </div>
               <input
@@ -104,7 +129,7 @@ const CekOngkir = () => {
                 value={kotaAsal}
                 onChange={(e) => setKotaAsal(e.target.value)}
                 placeholder="Contoh: Jakarta"
-                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-md text-sm"
+                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-sm text-sm"
               />
             </div>
           </div>
@@ -114,7 +139,7 @@ const CekOngkir = () => {
               Kota Tujuan
             </label>
             <div className="flex w-full shadow-sm">
-              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-md">
+              <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-sm">
                 <MapPinCheck size={20} />
               </div>
               <input
@@ -122,7 +147,7 @@ const CekOngkir = () => {
                 value={kotaTujuan}
                 onChange={(e) => setKotaTujuan(e.target.value)}
                 placeholder="Contoh: Bandung"
-                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-md text-sm"
+                className="w-full px-4 py-3.5 focus:outline-none text-gray-800 bg-white rounded-r-sm text-sm"
               />
             </div>
           </div>
@@ -131,7 +156,7 @@ const CekOngkir = () => {
         <div className="flex justify-center mt-8">
           <button
             type="submit"
-            className="w-full md:w-auto bg-yellow-400 text-black px-10 py-3.5 rounded-md font-extrabold cursor-pointer hover:bg-yellow-300 text-sm md:text-base flex items-center justify-center gap-2 shadow-md transition-all"
+            className="w-full md:w-auto bg-yellow-400 text-black px-10 py-3.5 rounded-sm font-extrabold cursor-pointer hover:bg-yellow-300 text-sm md:text-base flex items-center justify-center gap-2 shadow-md transition-all"
           >
             <BanknoteCheck size={20} />
             CEK ONGKIR SEKARANG
@@ -152,7 +177,7 @@ const CekOngkir = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="bg-white rounded-2xl max-w-lg w-full p-6 text-left shadow-2xl relative"
+              className="bg-white rounded-sm max-w-lg w-full p-6 text-left shadow-2xl relative"
             >
               <button
                 onClick={() => setModalBuka(false)}
@@ -171,10 +196,10 @@ const CekOngkir = () => {
               ) : (
                 <div>
                   <div className="mb-4">
-                    <span className="bg-[#FFCC00] text-gray-950 font-extrabold text-xs px-2.5 py-1 rounded">
+                    <span className="bg-[#FFCC00] text-gray-950 font-extrabold text-xs px-2.5 py-1 rounded-sm">
                       Hasil Cek Tarif
                     </span>
-                    <h3 className="text-xl font-extrabold text-gray-900 mt-2">
+                    <h3 className="text-xl font-extrabold text-gray-900 mt-2 uppercase">
                       {kotaAsal} &rarr; {kotaTujuan}
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">
@@ -189,7 +214,7 @@ const CekOngkir = () => {
                     {hasilOngkir?.map((item, index) => (
                       <div
                         key={index}
-                        className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-200"
+                        className="flex justify-between items-center p-4 bg-gray-50 rounded-sm border border-gray-200"
                       >
                         <div>
                           <div className="font-bold text-gray-900 text-sm">
@@ -210,7 +235,7 @@ const CekOngkir = () => {
 
                   <button
                     onClick={() => setModalBuka(false)}
-                    className="w-full bg-gray-950 hover:bg-gray-900 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-6 cursor-pointer"
+                    className="w-full bg-gray-950 hover:bg-gray-900 text-white font-bold py-3 rounded-sm text-sm transition-colors mt-6 cursor-pointer"
                   >
                     Tutup
                   </button>
