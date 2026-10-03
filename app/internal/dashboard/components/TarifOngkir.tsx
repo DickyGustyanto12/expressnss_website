@@ -1,21 +1,31 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit, Trash2, Truck, X, Loader2 } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Truck,
+  X,
+  Loader2,
+  ChevronDown,
+} from "lucide-react";
 import Swal from "sweetalert2";
 
 interface TarifItem {
-  id: string;
-  realId: number;
-  asal: string;
-  tujuan: string;
-  layanan: "Reguler" | "Next";
-  tarif: number;
+  id: number;
+  kota_asal: string;
+  kota_tujuan: string;
+  layanan: string;
+  berat: number;
+  harga_ongkir: number;
 }
+
+const layananOptions = ["REGULER", "NEXT"];
 
 const TarifOngkir = () => {
   const [daftarTarif, setDaftarTarif] = useState<TarifItem[]>([]);
-  const [dataMentah, setDataMentah] = useState<any[]>([]);
   const [pencarian, setPencarian] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,8 +34,11 @@ const TarifOngkir = () => {
   const [formId, setFormId] = useState<number | null>(null);
   const [formAsal, setFormAsal] = useState("");
   const [formTujuan, setFormTujuan] = useState("");
-  const [formReguler, setFormReguler] = useState("");
-  const [formNextday, setFormNextday] = useState("");
+  const [formLayanan, setFormLayanan] = useState("REGULER");
+  const [dropdownBuka, setDropdownBuka] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [formBerat, setFormBerat] = useState("");
+  const [formHarga, setFormHarga] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const ambilDataTarif = async () => {
@@ -38,29 +51,7 @@ const TarifOngkir = () => {
         throw new Error(data.error || "Gagal memuat data tarif");
       }
 
-      setDataMentah(data);
-
-      const formattedData: TarifItem[] = [];
-      data.forEach((item: any) => {
-        formattedData.push({
-          id: `${item.id}-reg`,
-          realId: item.id,
-          asal: item.kota_asal,
-          tujuan: item.kota_tujuan,
-          layanan: "Reguler",
-          tarif: item.harga_reguler,
-        });
-        formattedData.push({
-          id: `${item.id}-next`,
-          realId: item.id,
-          asal: item.kota_asal,
-          tujuan: item.kota_tujuan,
-          layanan: "Next",
-          tarif: item.harga_nextday,
-        });
-      });
-
-      setDaftarTarif(formattedData);
+      setDaftarTarif(data);
     } catch (error: any) {
       Swal.fire("Error", error.message, "error");
     } finally {
@@ -74,8 +65,8 @@ const TarifOngkir = () => {
 
   const tarifTersaring = daftarTarif.filter(
     (item) =>
-      item.asal.toLowerCase().includes(pencarian.toLowerCase()) ||
-      item.tujuan.toLowerCase().includes(pencarian.toLowerCase()) ||
+      item.kota_asal.toLowerCase().includes(pencarian.toLowerCase()) ||
+      item.kota_tujuan.toLowerCase().includes(pencarian.toLowerCase()) ||
       item.layanan.toLowerCase().includes(pencarian.toLowerCase()),
   );
 
@@ -84,21 +75,55 @@ const TarifOngkir = () => {
     setFormId(null);
     setFormAsal("");
     setFormTujuan("");
-    setFormReguler("");
-    setFormNextday("");
+    setFormLayanan("REGULER");
+    setSelectedIndex(0);
+    setFormBerat("");
+    setFormHarga("");
+    setDropdownBuka(false);
     setModalFormBuka(true);
   };
 
-  const bukaModalEdit = (realId: number) => {
-    const item = dataMentah.find((d) => d.id === realId);
-    if (item) {
-      setModeEdit(true);
-      setFormId(item.id);
-      setFormAsal(item.kota_asal);
-      setFormTujuan(item.kota_tujuan);
-      setFormReguler(item.harga_reguler);
-      setFormNextday(item.harga_nextday);
-      setModalFormBuka(true);
+  const bukaModalEdit = (item: TarifItem) => {
+    setModeEdit(true);
+    setFormId(item.id);
+    setFormAsal(item.kota_asal);
+    setFormTujuan(item.kota_tujuan);
+    setFormLayanan(item.layanan);
+    setSelectedIndex(
+      layananOptions.indexOf(item.layanan) >= 0
+        ? layananOptions.indexOf(item.layanan)
+        : 0,
+    );
+    setFormBerat(item.berat ? item.berat.toString() : "");
+    setFormHarga(item.harga_ongkir.toString());
+    setDropdownBuka(false);
+    setModalFormBuka(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!dropdownBuka) {
+      if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setDropdownBuka(true);
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % layananOptions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex(
+        (prev) => (prev - 1 + layananOptions.length) % layananOptions.length,
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      setFormLayanan(layananOptions[selectedIndex]);
+      setDropdownBuka(false);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setDropdownBuka(false);
     }
   };
 
@@ -108,8 +133,9 @@ const TarifOngkir = () => {
     if (
       !formAsal.trim() ||
       !formTujuan.trim() ||
-      !formReguler ||
-      !formNextday
+      !formLayanan ||
+      !formBerat ||
+      !formHarga
     ) {
       Swal.fire({
         title: "Peringatan",
@@ -130,14 +156,16 @@ const TarifOngkir = () => {
             id: formId,
             kota_asal: formAsal,
             kota_tujuan: formTujuan,
-            harga_reguler: Number(formReguler),
-            harga_nextday: Number(formNextday),
+            layanan: formLayanan,
+            berat: Number(formBerat),
+            harga_ongkir: Number(formHarga),
           }
         : {
             kota_asal: formAsal,
             kota_tujuan: formTujuan,
-            harga_reguler: Number(formReguler),
-            harga_nextday: Number(formNextday),
+            layanan: formLayanan,
+            berat: Number(formBerat),
+            harga_ongkir: Number(formHarga),
           };
 
       const response = await fetch(url, {
@@ -171,7 +199,7 @@ const TarifOngkir = () => {
     }
   };
 
-  const handleHapus = (realId: number) => {
+  const handleHapus = (id: number) => {
     Swal.fire({
       title: "Hapus Tarif?",
       text: "Data tarif ongkir ini akan dihapus permanen dari sistem.",
@@ -184,7 +212,7 @@ const TarifOngkir = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const response = await fetch(`/api/tarif-ongkir?id=${realId}`, {
+          const response = await fetch(`/api/tarif-ongkir?id=${id}`, {
             method: "DELETE",
           });
           const data = await response.json();
@@ -229,7 +257,7 @@ const TarifOngkir = () => {
             <Search size={16} className="text-gray-400 mr-2" />
             <input
               type="text"
-              placeholder="Cari kota asal, tujuan, atau layanan (Reguler/Next)..."
+              placeholder="Cari kota asal, tujuan, atau layanan..."
               value={pencarian}
               onChange={(e) => setPencarian(e.target.value)}
               className="w-full bg-transparent text-xs focus:outline-none text-gray-800"
@@ -244,7 +272,8 @@ const TarifOngkir = () => {
                 <th className="px-5 py-3">Kota Asal</th>
                 <th className="px-5 py-3">Kota Tujuan</th>
                 <th className="px-5 py-3">Layanan</th>
-                <th className="px-5 py-3">Tarif / Kg</th>
+                <th className="px-5 py-3">Berat (Kg)</th>
+                <th className="px-5 py-3">Harga / Kg</th>
                 <th className="px-5 py-3 text-center">Aksi</th>
               </tr>
             </thead>
@@ -252,7 +281,7 @@ const TarifOngkir = () => {
               {isLoading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-5 py-8 text-center text-gray-400"
                   >
                     Memuat data tarif...
@@ -261,7 +290,7 @@ const TarifOngkir = () => {
               ) : tarifTersaring.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-5 py-8 text-center text-gray-400"
                   >
                     Tidak ada data tarif ongkir yang ditemukan.
@@ -275,15 +304,15 @@ const TarifOngkir = () => {
                   >
                     <td className="px-5 py-3 font-bold text-gray-900 flex items-center gap-1.5">
                       <Truck size={14} className="text-yellow-600" />
-                      {item.asal}
+                      {item.kota_asal}
                     </td>
                     <td className="px-5 py-3 font-bold text-gray-900">
-                      {item.tujuan}
+                      {item.kota_tujuan}
                     </td>
                     <td className="px-5 py-3">
                       <span
                         className={`px-2 py-0.5 rounded-sm font-bold text-[10px] ${
-                          item.layanan === "Reguler"
+                          item.layanan === "REGULER"
                             ? "bg-yellow-100 text-yellow-800"
                             : "bg-blue-100 text-blue-800"
                         }`}
@@ -291,20 +320,23 @@ const TarifOngkir = () => {
                         {item.layanan}
                       </span>
                     </td>
+                    <td className="px-5 py-3 font-semibold text-gray-800">
+                      {item.berat ?? 0} Kg
+                    </td>
                     <td className="px-5 py-3 font-black text-gray-950">
-                      Rp {item.tarif.toLocaleString("id-ID")}
+                      Rp {Number(item.harga_ongkir).toLocaleString("id-ID")}
                     </td>
                     <td className="px-5 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() => bukaModalEdit(item.realId)}
+                          onClick={() => bukaModalEdit(item)}
                           className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-sm transition-colors cursor-pointer"
                           title="Edit"
                         >
                           <Edit size={14} />
                         </button>
                         <button
-                          onClick={() => handleHapus(item.realId)}
+                          onClick={() => handleHapus(item.id)}
                           className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-sm transition-colors cursor-pointer"
                           title="Hapus"
                         >
@@ -335,6 +367,57 @@ const TarifOngkir = () => {
             </h3>
 
             <form onSubmit={handleSimpanData} className="space-y-4">
+              <div className="relative">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Layanan Pengiriman
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setDropdownBuka(!dropdownBuka)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-xs font-bold text-gray-800 cursor-pointer flex justify-between items-center transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] ${
+                      formLayanan === "REGULER"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}
+                  >
+                    {formLayanan}
+                  </span>
+                  <ChevronDown size={14} className="text-gray-500" />
+                </button>
+
+                {dropdownBuka && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 overflow-hidden py-1">
+                    {layananOptions.map((opt, idx) => (
+                      <div
+                        key={opt}
+                        onClick={() => {
+                          setFormLayanan(opt);
+                          setSelectedIndex(idx);
+                          setDropdownBuka(false);
+                        }}
+                        className={`px-3 py-2.5 text-xs cursor-pointer transition-colors hover:bg-gray-100 flex items-center ${
+                          selectedIndex === idx ? "bg-gray-50" : ""
+                        }`}
+                      >
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            opt === "REGULER"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {opt}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
                   Kota Asal
@@ -365,13 +448,14 @@ const TarifOngkir = () => {
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Harga Reguler / Kg (Rp)
+                  Berat (Kg)
                 </label>
                 <input
                   type="number"
-                  value={formReguler}
-                  onChange={(e) => setFormReguler(e.target.value)}
-                  placeholder="Contoh: 15000"
+                  step="0.01"
+                  value={formBerat}
+                  onChange={(e) => setFormBerat(e.target.value)}
+                  placeholder="Contoh: 1.00"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   required
                 />
@@ -379,13 +463,13 @@ const TarifOngkir = () => {
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Harga Next Day / Kg (Rp)
+                  Harga / Kg (Rp)
                 </label>
                 <input
                   type="number"
-                  value={formNextday}
-                  onChange={(e) => setFormNextday(e.target.value)}
-                  placeholder="Contoh: 35000"
+                  value={formHarga}
+                  onChange={(e) => setFormHarga(e.target.value)}
+                  placeholder="Contoh: 15000"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                   required
                 />

@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
-import mysql from "mysql2/promise";
-
-const pool = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "admin",
-  database: "nss_express",
-});
+import { pool } from "@/lib/internal/db";
+import type { RowDataPacket } from "mysql2";
 
 export async function POST(request: Request) {
   try {
@@ -15,56 +9,33 @@ export async function POST(request: Request) {
 
     if (!berat || !asal || !tujuan) {
       return NextResponse.json(
-        { error: "Berat, Kota Asal, dan Kota Tujuan wajib diisi" },
+        { error: "Berat, kota asal, dan kota tujuan wajib diisi!" },
         { status: 400 },
       );
     }
 
-    const [rows]: any = await pool.execute(
-      "SELECT * FROM tarif_ongkir WHERE LOWER(kota_asal) = LOWER(?) AND LOWER(kota_tujuan) = LOWER(?)",
-      [asal.trim(), tujuan.trim()],
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      "SELECT * FROM tarif_ongkir WHERE LOWER(kota_asal) LIKE LOWER(?) AND LOWER(kota_tujuan) LIKE LOWER(?)",
+      [`%${asal}%`, `%${tujuan}%`],
     );
 
     if (rows.length === 0) {
       return NextResponse.json(
-        { message: "Tarif untuk rute tersebut tidak ditemukan" },
+        { error: "Tarif pengiriman untuk rute tersebut tidak ditemukan." },
         { status: 404 },
       );
     }
 
-    const dataTarif = rows[0];
-    const beratBarang = Number(berat);
+    const beratNum = Number(berat);
+    const layanan = rows.map((item) => ({
+      nama: item.layanan,
+      estimasi: item.layanan === "REGULER" ? "3-5 Hari" : "1-2 Hari",
+      tarif: Number(item.harga_ongkir) * beratNum,
+    }));
 
-    const totalReguler = (dataTarif.harga_reguler || 15000) * beratBarang;
-    const totalNextDay = (dataTarif.harga_nextday || 35000) * beratBarang;
-
-    const hasilRespons = {
-      asal: asal,
-      tujuan: tujuan,
-      berat: beratBarang,
-      layanan: [
-        {
-          nama: "Reguler (REG)",
-          estimasi: "2-3 Hari",
-          tarif: totalReguler,
-        },
-        {
-          nama: "Next Day (NEXT)",
-          estimasi: "1 Hari",
-          tarif: totalNextDay,
-        },
-      ],
-    };
-
-    return NextResponse.json(hasilRespons, { status: 200 });
+    return NextResponse.json({ layanan }, { status: 200 });
   } catch (error: any) {
-    console.error("Database error cek ongkir:", error.message);
-    return NextResponse.json(
-      {
-        error: "Gagal mengambil data tarif dari database",
-        details: error.message,
-      },
-      { status: 500 },
-    );
+    console.error(error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

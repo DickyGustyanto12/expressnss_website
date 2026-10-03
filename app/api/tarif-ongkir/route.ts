@@ -1,20 +1,15 @@
 import { NextResponse } from "next/server";
-import mysql from "mysql2/promise";
-
-const pool = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "admin",
-  database: "nss_express",
-});
+import { pool } from "@/lib/internal/db";
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 export async function GET() {
   try {
-    const [rows] = await pool.execute(
+    const [rows] = await pool.execute<RowDataPacket[]>(
       "SELECT * FROM tarif_ongkir ORDER BY id DESC",
     );
     return NextResponse.json(rows, { status: 200 });
   } catch (error: any) {
+    console.error(error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -22,25 +17,32 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { kota_asal, kota_tujuan, harga_reguler, harga_nextday } = body;
+    const { kota_asal, kota_tujuan, layanan, berat, harga_ongkir } = body;
 
-    if (!kota_asal || !kota_tujuan || !harga_reguler || !harga_nextday) {
+    if (
+      !kota_asal ||
+      !kota_tujuan ||
+      !layanan ||
+      berat === undefined ||
+      !harga_ongkir
+    ) {
       return NextResponse.json(
-        { error: "Semua kolom wajib diisi" },
+        { error: "Semua kolom wajib diisi!" },
         { status: 400 },
       );
     }
 
-    await pool.execute(
-      "INSERT INTO tarif_ongkir (kota_asal, kota_tujuan, harga_reguler, harga_nextday) VALUES (?, ?, ?, ?)",
-      [kota_asal.trim(), kota_tujuan.trim(), harga_reguler, harga_nextday],
+    const [result] = await pool.execute<ResultSetHeader>(
+      "INSERT INTO tarif_ongkir (kota_asal, kota_tujuan, layanan, berat, harga_ongkir) VALUES (?, ?, ?, ?, ?)",
+      [kota_asal, kota_tujuan, layanan, berat, harga_ongkir],
     );
 
     return NextResponse.json(
-      { message: "Data tarif berhasil ditambahkan" },
+      { message: "Data tarif berhasil ditambahkan", id: result.insertId },
       { status: 201 },
     );
   } catch (error: any) {
+    console.error(error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -48,18 +50,25 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, kota_asal, kota_tujuan, harga_reguler, harga_nextday } = body;
+    const { id, kota_asal, kota_tujuan, layanan, berat, harga_ongkir } = body;
 
-    if (!id || !kota_asal || !kota_tujuan || !harga_reguler || !harga_nextday) {
+    if (
+      !id ||
+      !kota_asal ||
+      !kota_tujuan ||
+      !layanan ||
+      berat === undefined ||
+      !harga_ongkir
+    ) {
       return NextResponse.json(
-        { error: "Data tidak lengkap" },
+        { error: "Semua kolom wajib diisi!" },
         { status: 400 },
       );
     }
 
     await pool.execute(
-      "UPDATE tarif_ongkir SET kota_asal = ?, kota_tujuan = ?, harga_reguler = ?, harga_nextday = ? WHERE id = ?",
-      [kota_asal.trim(), kota_tujuan.trim(), harga_reguler, harga_nextday, id],
+      "UPDATE tarif_ongkir SET kota_asal = ?, kota_tujuan = ?, layanan = ?, berat = ?, harga_ongkir = ? WHERE id = ?",
+      [kota_asal, kota_tujuan, layanan, berat, harga_ongkir, id],
     );
 
     return NextResponse.json(
@@ -67,6 +76,7 @@ export async function PUT(request: Request) {
       { status: 200 },
     );
   } catch (error: any) {
+    console.error(error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -78,7 +88,7 @@ export async function DELETE(request: Request) {
 
     if (!id) {
       return NextResponse.json(
-        { error: "ID tidak ditemukan" },
+        { error: "ID tarif diperlukan" },
         { status: 400 },
       );
     }
@@ -90,6 +100,7 @@ export async function DELETE(request: Request) {
       { status: 200 },
     );
   } catch (error: any) {
+    console.error(error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
