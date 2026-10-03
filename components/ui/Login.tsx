@@ -4,50 +4,68 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail } from "lucide-react";
 import Swal from "sweetalert2";
-import Banner2 from "../assets/banner2.webp";
-import Logo from "../assets/logoexpress.webp";
+import Banner2 from "../../public/banner2.webp";
+import Logo from "../../public/logoexpress.webp";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const daftarAkunDummy = [
-    { email: "admin@nssexpress.co.id", password: "123456" },
-    { email: "staff@nssexpress.co.id", password: "password123" },
-  ];
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
 
-    const akunDitemukan = daftarAkunDummy.find(
-      (akun) => akun.email === email && akun.password === password,
-    );
-
-    if (akunDitemukan) {
-      localStorage.setItem("isLoggedIn", "true");
-      Swal.fire({
-        title: "Login Berhasil!",
-        text: "Selamat datang kembali di panel internal NSS Express.",
-        icon: "success",
-        timer: 2000,
-        timerProgressBar: true,
-        showConfirmButton: false,
-        color: "#31371fff",
-        background: "#ffffff",
-      }).then(() => {
-        router.push("/internal/dashboard");
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
-    } else {
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("userRole", data.user.role);
+        localStorage.setItem("userName", data.user.nama);
+
+        Swal.fire({
+          title: "Login Berhasil!",
+          text: `Selamat datang kembali, ${data.user.nama} (${data.user.role}).`,
+          icon: "success",
+          timer: 2000,
+          timerProgressBar: true,
+          showConfirmButton: false,
+          color: "#31371fff",
+          background: "#ffffff",
+        }).then(() => {
+          router.push("/internal/dashboard");
+        });
+      } else {
+        Swal.fire({
+          title: "Login Gagal",
+          text: data.message || "Email atau password yang kamu masukkan salah.",
+          icon: "error",
+          confirmButtonColor: "#FFCC00",
+          confirmButtonText: "Coba Lagi",
+          color: "#1f2937",
+          background: "#ffffff",
+        });
+      }
+    } catch (error) {
+      console.error("Terjadi kesalahan:", error);
       Swal.fire({
-        title: "Login Gagal",
-        text: "Email atau password yang kamu masukkan salah.",
+        title: "Kesalahan Sistem",
+        text: "Tidak dapat terhubung ke server. Periksa koneksi Anda.",
         icon: "error",
         confirmButtonColor: "#FFCC00",
-        confirmButtonText: "Coba Lagi",
-        color: "#1f2937",
-        background: "#ffffff",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,14 +85,14 @@ const Login = () => {
               Masuk ke Sistem Internal
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              Silakan masukkan akun Anda
+              Silakan masukkan akun Anda yang terdaftar
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-2">
-                Email Admin
+                Email Akun
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -85,7 +103,7 @@ const Login = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@nssexpress.co.id"
+                  placeholder="adminexpressnss@gmail.com"
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00]"
                 />
               </div>
@@ -112,9 +130,10 @@ const Login = () => {
 
             <button
               type="submit"
-              className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-3 px-4 rounded-xl text-sm transition-all shadow-md cursor-pointer"
+              disabled={loading}
+              className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-3 px-4 rounded-xl text-sm transition-all shadow-md cursor-pointer disabled:opacity-50"
             >
-              LOGIN
+              {loading ? "MEMPROSES..." : "LOGIN"}
             </button>
           </form>
         </div>
