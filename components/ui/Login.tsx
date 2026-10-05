@@ -29,18 +29,23 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
         localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("userRole", data.user.role);
-        localStorage.setItem("userName", data.user.nama);
 
         Swal.fire({
           title: "Login Berhasil!",
-          text: `Selamat datang kembali, ${data.user.nama} (${data.user.role}).`,
+          html: `
+            <p style="margin-bottom: 10px; color: #4b5563; font-size: 0.95rem;">Selamat datang kembali,</p>
+            <div style="display: inline-block; padding: 8px 20px;">
+              <h3 style="color: #1f2937; font-weight: 200; margin: 0; font-size: 1.2rem; letter-spacing: 0.5px;">${data.user.nama}</h3>
+            </div>
+          `,
           icon: "success",
-          timer: 2000,
+          timer: 2500,
           timerProgressBar: true,
           showConfirmButton: false,
-          color: "#31371fff",
+          color: "#1f2937",
           background: "#ffffff",
         }).then(() => {
           router.push("/internal/dashboard");
@@ -103,7 +108,7 @@ const Login = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="adminexpressnss@gmail.com"
+                  placeholder="Masukkan Email"
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00]"
                 />
               </div>

@@ -10,13 +10,17 @@ import {
   ExternalLink,
   Phone,
   Loader2,
+  WifiOff,
+  Wifi,
 } from "lucide-react";
 import { useLiveChatSocket } from "../../app/hooks/use-live-chat-socket";
+
 interface PesanChat {
   id: number;
   pengirim: "admin" | "user";
   teks: string;
   waktu: string;
+  clientMessageId?: string;
 }
 
 interface ChatWidgetProps {
@@ -29,23 +33,24 @@ const ChatWidget = ({
   setBukaChat: externalSetBukaChat,
 }: ChatWidgetProps = {}) => {
   const [internalBukaChat, setInternalBukaChat] = useState(false);
-
   const bukaChat =
     externalBukaChat !== undefined ? externalBukaChat : internalBukaChat;
-
   const setBukaChat = externalSetBukaChat || setInternalBukaChat;
+
   const [sudahMulai, setSudahMulai] = useState(false);
   const [nama, setNama] = useState("");
   const [nomorHp, setNomorHp] = useState("");
   const [pesanInput, setPesanInput] = useState("");
   const [daftarPesan, setDaftarPesan] = useState<PesanChat[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const socket = useLiveChatSocket(conversationId);
+  const { socket, status } = useLiveChatSocket(token, conversationId, false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,7 +69,7 @@ const ChatWidget = ({
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("message:new", (data: any) => {
+    const handleMessageNew = (data: any) => {
       if (data.senderType === "admin") {
         const pesanBaruAdmin: PesanChat = {
           id: data.id || Date.now(),
@@ -75,14 +80,78 @@ const ChatWidget = ({
             minute: "2-digit",
           }),
         };
-        setDaftarPesan((prev) => [...prev, pesanBaruAdmin]);
+        setDaftarPesan((prev) => {
+          const exists = prev.find(
+            (p) =>
+              p.id === data.id || p.clientMessageId === data.clientMessageId,
+          );
+          if (exists) return prev;
+          return [...prev, pesanBaruAdmin];
+        });
       }
-    });
+    };
+
+    socket.on("message:new", handleMessageNew);
 
     return () => {
-      socket.off("message:new");
+      socket.off("message:new", handleMessageNew);
     };
   }, [socket]);
+
+  useEffect(() => {
+    if (
+      socket &&
+      status === "connected" &&
+      conversationId &&
+      daftarPesan.length === 0 &&
+      !isLoadingHistory
+    ) {
+      loadMessageHistory();
+    }
+  }, [socket, status, conversationId]);
+
+  const loadMessageHistory = async () => {
+    if (!conversationId) return;
+
+    setIsLoadingHistory(true);
+    try {
+      const lastMsg = daftarPesan[daftarPesan.length - 1];
+      const params = new URLSearchParams({ conversationId });
+      if (lastMsg?.id) {
+        params.set("after", lastMsg.id.toString());
+      }
+
+      const res = await fetch(`/api/live-chat/messages?${params}`);
+      const data = await res.json();
+
+      if (res.ok && Array.isArray(data)) {
+        setDaftarPesan((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newMessages = data
+            .filter((msg: any) => !existingIds.has(msg.id))
+            .map(
+              (msg: any): PesanChat => ({
+                id: msg.id,
+                pengirim: (msg.sender_type === "customer"
+                  ? "user"
+                  : "admin") as "user" | "admin",
+                teks: msg.message,
+                waktu: new Date(msg.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                clientMessageId: msg.client_message_id,
+              }),
+            );
+          return [...prev, ...newMessages];
+        });
+      }
+    } catch (error) {
+      console.error("Gagal load history:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   const dapatkanWaktuSekarang = () => {
     const d = new Date();
@@ -116,7 +185,10 @@ const ChatWidget = ({
       const response = await fetch("/api/live-chat/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama, whatsapp: nomorHp }),
+        body: JSON.stringify({
+          customer_name: nama,
+          customer_whatsapp: nomorHp,
+        }),
       });
 
       const data = await response.json();
@@ -125,8 +197,18 @@ const ChatWidget = ({
         throw new Error(data.message || "Gagal memulai sesi chat");
       }
 
-      setConversationId(data.conversationId);
+      setToken(data.token);
+      setConversationId(data.conversationId.toString());
       setSudahMulai(true);
+
+      localStorage.setItem("live_chat_token", data.token);
+      localStorage.setItem(
+        "live_chat_conversation_id",
+        data.conversationId.toString(),
+      );
+      localStorage.setItem("live_chat_nama", nama);
+      localStorage.setItem("live_chat_nomor_hp", nomorHp);
+
       setDaftarPesan([
         {
           id: 1,
@@ -153,13 +235,14 @@ const ChatWidget = ({
       pengirim: "user",
       teks: teksKirim,
       waktu: dapatkanWaktuSekarang(),
+      clientMessageId,
     };
 
     setDaftarPesan((prev) => [...prev, pesanBaruUser]);
     setPesanInput("");
 
     socket.emit("message:send", {
-      conversationId,
+      conversationId: parseInt(conversationId),
       clientMessageId,
       message: teksKirim,
       senderType: "customer",
@@ -171,6 +254,38 @@ const ChatWidget = ({
       `Halo NSS Express, saya ${nama || "Pelanggan"} (${nomorHp || "-"}). Saya ingin bertanya informasi pengiriman.`,
     );
     window.open(`https://wa.me/628112551010?text=${teksWA}`, "_blank");
+  };
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("live_chat_token");
+    const savedConversationId = localStorage.getItem(
+      "live_chat_conversation_id",
+    );
+    const savedNama = localStorage.getItem("live_chat_nama");
+    const savedNomorHp = localStorage.getItem("live_chat_nomor_hp");
+
+    if (savedToken && savedConversationId && savedNama) {
+      setToken(savedToken);
+      setConversationId(savedConversationId);
+      setNama(savedNama);
+      setNomorHp(savedNomorHp || "");
+      setSudahMulai(true);
+    }
+  }, []);
+
+  const getConnectionStatusIcon = () => {
+    if (status === "connected")
+      return <Wifi size={12} className="text-emerald-600" />;
+    if (status === "error" || status === "disconnected")
+      return <WifiOff size={12} className="text-red-600" />;
+    return <Loader2 size={12} className="animate-spin text-yellow-600" />;
+  };
+
+  const getConnectionStatusText = () => {
+    if (status === "connected") return "Tersambung";
+    if (status === "error") return "Gagal koneksi";
+    if (status === "disconnected") return "Terputus";
+    return "Menghubungkan...";
   };
 
   return (
@@ -199,9 +314,12 @@ const ChatWidget = ({
                   <h4 className="font-extrabold text-sm leading-tight text-black flex items-center gap-1">
                     Customer Service
                   </h4>
-                  <p className="text-[11px] text-black font-bold mt-0.5">
-                    Realtime Support
-                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {getConnectionStatusIcon()}
+                    <p className="text-[10px] text-black font-bold">
+                      {getConnectionStatusText()}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -286,10 +404,17 @@ const ChatWidget = ({
               <div className="flex flex-col flex-1 bg-slate-50 overflow-hidden">
                 <div className="px-3 py-1.5 bg-yellow-100 border-b border-yellow-200 flex items-center justify-between text-[11px] text-gray-800 shrink-0">
                   <button
-                    onClick={() => setSudahMulai(false)}
+                    onClick={() => {
+                      setSudahMulai(false);
+                      setConversationId(null);
+                      setToken(null);
+                      setDaftarPesan([]);
+                      localStorage.removeItem("live_chat_token");
+                      localStorage.removeItem("live_chat_conversation_id");
+                    }}
                     className="flex items-center gap-1 hover:text-yellow-800 transition-colors cursor-pointer font-semibold"
                   >
-                    <ArrowLeft size={12} /> Ganti Data ({nama})
+                    <ArrowLeft size={12} /> Ganti Data
                   </button>
                   <button
                     onClick={handleBukaWhatsAppLangsung}
@@ -300,9 +425,15 @@ const ChatWidget = ({
                 </div>
 
                 <div className="flex-1 p-3 overflow-y-auto space-y-2.5">
+                  {isLoadingHistory && (
+                    <div className="text-center text-xs text-gray-500 py-2">
+                      Memuat pesan...
+                    </div>
+                  )}
+
                   {daftarPesan.map((msg) => (
                     <div
-                      key={msg.id}
+                      key={msg.clientMessageId || msg.id}
                       className={`flex flex-col ${msg.pengirim === "user" ? "items-end" : "items-start"}`}
                     >
                       <div
@@ -331,12 +462,18 @@ const ChatWidget = ({
                       value={pesanInput}
                       onChange={(e) => setPesanInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleKirimPesan()}
-                      placeholder="Ketik pesan Anda..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400"
+                      placeholder={
+                        status === "connected"
+                          ? "Ketik pesan Anda..."
+                          : "Menunggu koneksi..."
+                      }
+                      disabled={status !== "connected"}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400 disabled:bg-gray-100"
                     />
                     <button
                       onClick={handleKirimPesan}
-                      className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm"
+                      disabled={!pesanInput.trim() || status !== "connected"}
+                      className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
                     >
                       <Send size={14} />
                     </button>

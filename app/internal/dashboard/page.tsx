@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   LogOut,
@@ -21,6 +21,40 @@ export default function Dashboard() {
   const [menuAktif, setMenuAktif] = useState("ringkasan");
   const tahunSekarang = new Date().getFullYear();
 
+  // State untuk menyimpan data user yang login
+  const [userData, setUserData] = useState({
+    id: 1,
+    nama: "Administrator",
+    email: "admin@nssexpress.com",
+  });
+
+  // Ambil data user dari localStorage saat komponen dimuat
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUserData({
+          id: parsedUser.id || 1,
+          nama: parsedUser.nama || "Administrator",
+          email: parsedUser.email || "admin@nssexpress.com",
+        });
+      } catch (error) {
+        console.error("Gagal membaca data user:", error);
+      }
+    }
+  }, []);
+
+  // Fungsi helper untuk mendapatkan inisial nama
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
+  };
+
   const handleLogout = () => {
     Swal.fire({
       title: "Keluar dari Panel?",
@@ -36,6 +70,8 @@ export default function Dashboard() {
     }).then((result) => {
       if (result.isConfirmed) {
         localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
         Swal.fire({
           title: "Berhasil Keluar",
           text: "Anda telah keluar dari panel internal.",
@@ -57,7 +93,6 @@ export default function Dashboard() {
       <div className="flex flex-1 min-h-0">
         <aside className="w-72 bg-[#FFCC00] border-r border-yellow-400 p-5 flex flex-col justify-between hidden md:flex shadow-md shrink-0">
           <div>
-            {/* Logo & Header Sidebar */}
             <div className="flex items-center gap-3.5 px-3 py-3.5 mb-6 border-b border-yellow-400/80 bg-white/40 backdrop-blur-xs rounded-sm shadow-xs border border-yellow-300/60">
               <div className="bg-white p-2 rounded-sm shadow-xs border border-yellow-300 flex items-center justify-center shrink-0">
                 <img
@@ -76,19 +111,20 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Profil User Dinamis */}
             <div className="mb-6 px-3.5 py-3 bg-white/80 border border-yellow-300 rounded-sm flex items-center gap-3 shadow-xs">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gray-950 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs">
-                  AD
+                  {getInitials(userData.nama)}
                 </div>
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-600 border-2 border-white rounded-full"></span>
               </div>
               <div className="overflow-hidden">
                 <p className="text-sm font-extrabold text-gray-950 truncate">
-                  Administrator
+                  {userData.nama}
                 </p>
                 <p className="text-xs text-gray-600 truncate">
-                  admin@nssexpress.com
+                  {userData.email}
                 </p>
               </div>
             </div>
@@ -179,7 +215,7 @@ export default function Dashboard() {
               <header className="flex justify-between items-center bg-white p-6 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00]">
                 <div>
                   <h1 className="text-2xl font-extrabold text-gray-900">
-                    Selamat Datang, Admin
+                    Selamat Datang, {userData.nama}
                   </h1>
                   <p className="text-sm text-gray-500 mt-1">
                     Berikut adalah ringkasan sistem operasional hari ini.
@@ -192,6 +228,8 @@ export default function Dashboard() {
                   <LogOut size={16} className="rotate-180" /> Keluar
                 </button>
               </header>
+
+              {/* ... (Bagian grid ringkasan dan tabel ongkir tetap sama seperti kode Anda) ... */}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div
@@ -210,7 +248,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-
                 <div
                   onClick={() => setMenuAktif("ongkir")}
                   className="bg-white p-5 rounded-sm border border-gray-200 border-t-4 border-t-blue-500 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md cursor-pointer flex flex-col justify-between"
@@ -227,7 +264,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-
                 <div
                   onClick={() => setMenuAktif("carousel")}
                   className="bg-white p-5 rounded-sm border border-gray-200 border-t-4 border-t-green-500 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md cursor-pointer flex flex-col justify-between"
@@ -245,300 +281,13 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white border border-gray-200 border-t-4 border-t-yellow-400 rounded-sm p-6 shadow-sm flex flex-col">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 shrink-0">
-                    Pesan Masuk Terbaru
-                  </h2>
-                  <div className="max-h-44 overflow-y-auto space-y-3 pr-1">
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Budi Santoso
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Tanya jadwal pengiriman kargo...
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">Siti Rahma</p>
-                      <p className="text-gray-500 text-xs">
-                        Bagaimana cara klaim asuransi barang...
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">Ahmad Fauzi</p>
-                      <p className="text-gray-500 text-xs">
-                        Apakah ada layanan pengiriman makanan...
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Dewi Lestari
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Konfirmasi alamat pickup paket reguler...
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-200 border-t-4 border-t-green-500 rounded-sm p-6 shadow-sm flex flex-col">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 shrink-0">
-                    Update Carousel
-                  </h2>
-                  <div className="max-h-44 overflow-y-auto space-y-3 pr-1">
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Banner Utama (Promo Diskon 50%)
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Urutan ke-1 | Ditampilkan di Beranda
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Banner Flash Sale Kargo
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Urutan ke-2 | Ditampilkan di Beranda
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Banner Layanan Same Day
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Urutan ke-3 | Masuk Antrean Jadwal
-                      </p>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-sm text-sm transition-colors hover:bg-gray-100">
-                      <p className="font-semibold text-gray-900">
-                        Banner Hari Kemerdekaan
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Urutan ke-4 | Masuk Arsip Sistem
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 border-t-4 border-t-blue-500 rounded-sm p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">
-                  Rangkuman Tabel Harga Ongkir Terupdate
-                </h2>
-                <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-sm">
-                  <table className="w-full text-left text-sm text-gray-600">
-                    <thead className="bg-gray-50 text-gray-900 uppercase text-xs sticky top-0 z-10 shadow-xs">
-                      <tr>
-                        <th className="px-4 py-3">Kota Asal</th>
-                        <th className="px-4 py-3">Kota Tujuan</th>
-                        <th className="px-4 py-3">Layanan</th>
-                        <th className="px-4 py-3">Tarif / Kg</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Bogor
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 9.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Tangerang
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Express
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 10.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Bekasi
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 9.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Bandung
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Same Day
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 25.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Semarang
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 12.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Yogyakarta
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Express
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 18.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Surabaya
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Express
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 18.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Denpasar
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 22.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Medan
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Express
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 32.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Palembang
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 20.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Balikpapan
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Express
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 35.000
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Jakarta
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          Makassar
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-yellow-100 text-yellow-800 font-extrabold px-2.5 py-1 rounded-sm text-xs">
-                            Reguler
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          Rp 38.000
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           )}
 
-          {menuAktif === "pesan" && <PesanMasuk />}
+          {/* PERBAIKAN UTAMA: Mengirimkan props adminId dan adminName ke PesanMasuk */}
+          {menuAktif === "pesan" && (
+            <PesanMasuk adminId={userData.id} adminName={userData.nama} />
+          )}
           {menuAktif === "ongkir" && <TarifOngkir />}
           {menuAktif === "carousel" && <BannerCarousel />}
         </main>

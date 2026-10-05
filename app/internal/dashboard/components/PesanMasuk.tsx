@@ -1,17 +1,19 @@
+"use client";
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   Search,
   Send,
-  Paperclip,
-  Smile,
-  CheckCheck,
   CheckCircle2,
   Phone,
   Calendar,
   History,
   ListOrdered,
   Play,
+  Lock,
 } from "lucide-react";
+import { useLiveChatSocket } from "@/app/hooks/use-live-chat-socket";
+import Swal from "sweetalert2";
 
 interface Pesan {
   id: number;
@@ -22,107 +24,343 @@ interface Pesan {
   tanggal: string;
   waktu: string;
   statusChat: "antrian" | "selesai";
-  statusBaca: "Baru" | "Dibaca";
+  status: "open" | "assigned" | "closed";
+  assigned_admin_id: number | null;
+  unread_count: number;
   sudahDimulai: boolean;
   riwayatChat: {
+    id: number;
     penulis: "pelanggan" | "admin";
     teks: string;
     waktu: string;
+    client_message_id?: string;
   }[];
 }
 
-const PesanMasuk = () => {
-  const [daftarPesan, setDaftarPesan] = useState<Pesan[]>([
-    {
-      id: 1,
-      pengirim: "Budi Santoso",
-      email: "budi.s@gmail.com",
-      noHp: "+62 812-3456-7890",
-      avatar: "BS",
-      tanggal: "23 Sep 2026",
-      waktu: "10:45 AM",
-      statusChat: "antrian",
-      statusBaca: "Baru",
-      sudahDimulai: false,
-      riwayatChat: [
-        {
-          penulis: "pelanggan",
-          teks: "Halo admin, saya mau tanya jadwal pengiriman kargo ke Semarang apakah ada kendala minggu ini?",
-          waktu: "10:40 AM",
-        },
-        {
-          penulis: "pelanggan",
-          teks: "Baik, kalau estimasi sampainya berapa hari ya?",
-          waktu: "10:45 AM",
-        },
-      ],
-    },
-    {
-      id: 2,
-      pengirim: "Siti Rahma",
-      email: "siti.rahma@yahoo.com",
-      noHp: "+62 857-9876-5432",
-      avatar: "SR",
-      tanggal: "23 Sep 2026",
-      waktu: "09:20 AM",
-      statusChat: "antrian",
-      statusBaca: "Dibaca",
-      sudahDimulai: false,
-      riwayatChat: [
-        {
-          penulis: "pelanggan",
-          teks: "Halo Kak, mau konfirmasi nomor resi pengiriman reguler #NSS-9921 atas nama paket saya.",
-          waktu: "09:15 AM",
-        },
-        {
-          penulis: "admin",
-          teks: "Halo Kak Siti, setelah saya cek di sistem, paket sudah berada di kota tujuan dan dalam proses kurir pengantaran ya.",
-          waktu: "09:20 AM",
-        },
-      ],
-    },
-    {
-      id: 3,
-      pengirim: "Ahmad Fauzi",
-      email: "fauzi.logistik@gmail.com",
-      noHp: "+62 813-1122-3344",
-      avatar: "AF",
-      tanggal: "22 Sep 2026",
-      waktu: "02:10 PM",
-      statusChat: "selesai",
-      statusBaca: "Dibaca",
-      sudahDimulai: true,
-      riwayatChat: [
-        {
-          penulis: "pelanggan",
-          teks: "Selamat siang, apakah bisa pickup barang di rumah untuk kapasitas besar?",
-          waktu: "14:00 PM",
-        },
-        {
-          penulis: "admin",
-          teks: "Siang Pak Ahmad, tentu bisa. Silakan informasikan alamat lengkapnya.",
-          waktu: "14:05 PM",
-        },
-      ],
-    },
-  ]);
+interface PesanMasukProps {
+  adminId: number;
+  adminName: string;
+}
 
+const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
+  const [daftarPesan, setDaftarPesan] = useState<Pesan[]>([]);
   const [tabAktif, setTabAktif] = useState<"antrian" | "riwayat">("antrian");
-  const [kontakAktifId, setKontakAktifId] = useState<number>(1);
+  const [kontakAktifId, setKontakAktifId] = useState<number | null>(null);
   const [inputPesan, setInputPesan] = useState<string>("");
   const [pencarian, setPencarian] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const { socket, status } = useLiveChatSocket(null, null, true);
+
+  useEffect(() => {
+    if (kontakAktifId) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [
+    daftarPesan.find((p) => p.id === kontakAktifId)?.riwayatChat,
+    kontakAktifId,
+  ]);
+
+  useEffect(() => {
+    if (socket && status === "connected") {
+      socket.emit("admins:live-chat:join");
+      loadConversations();
+    }
+  }, [socket, status]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("conversation:new", (data: any) => {
+      setDaftarPesan((prev) => {
+        if (prev.find((p) => p.id === data.id)) return prev;
+        return [
+          {
+            ...data,
+            pengirim: data.customer_name || "Unknown",
+            email: data.customer_email || "",
+            noHp: data.customer_whatsapp || "",
+            avatar: (data.customer_name || "UN").substring(0, 2).toUpperCase(),
+            tanggal: new Date(data.created_at).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            waktu: new Date(data.created_at).toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            statusChat: "antrian",
+            sudahDimulai: false,
+            riwayatChat: [],
+          },
+          ...prev,
+        ];
+      });
+    });
+
+    socket.on("conversation:updated", (data: any) => {
+      setDaftarPesan((prev) =>
+        prev.map((p) => {
+          if (p.id === data.conversationId) {
+            const isClosed = data.status === "closed";
+            return {
+              ...p,
+              status: data.status,
+              statusChat: isClosed ? "selesai" : "antrian",
+              assigned_admin_id: data.assignedAdminId,
+              sudahDimulai: data.assignedAdminId === adminId,
+            };
+          }
+          return p;
+        }),
+      );
+    });
+
+    socket.on("message:new", (data: any) => {
+      setDaftarPesan((prev) =>
+        prev.map((p) => {
+          if (p.id === data.conversationId) {
+            const isDuplicate = p.riwayatChat.some(
+              (msg) =>
+                msg.id === data.id ||
+                msg.client_message_id === data.clientMessageId,
+            );
+            if (isDuplicate) return p;
+
+            // PERBAIKAN: Tambahkan type annotation eksplisit di sini
+            const newMsg: {
+              id: number;
+              penulis: "pelanggan" | "admin";
+              teks: string;
+              waktu: string;
+              client_message_id?: string;
+            } = {
+              id: data.id,
+              penulis: data.senderType === "customer" ? "pelanggan" : "admin",
+              teks: data.message,
+              waktu: new Date(data.createdAt).toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              client_message_id: data.clientMessageId,
+            };
+
+            const isActive = p.id === kontakAktifId;
+            return {
+              ...p,
+              unread_count: isActive ? 0 : (p.unread_count || 0) + 1,
+              riwayatChat: [...p.riwayatChat, newMsg],
+            };
+          }
+          return p;
+        }),
+      );
+    });
+
+    return () => {
+      socket.off("conversation:new");
+      socket.off("conversation:updated");
+      socket.off("message:new");
+    };
+  }, [socket, kontakAktifId, adminId]);
+
+  const loadConversations = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/live-chat/conversations");
+      const data = await res.json();
+      if (res.ok) {
+        const formattedData = data.map((item: any) => ({
+          id: item.id,
+          pengirim: item.customer_name || "Unknown",
+          email: item.customer_email || "",
+          noHp: item.customer_whatsapp || "",
+          avatar: (item.customer_name || "UN").substring(0, 2).toUpperCase(),
+          tanggal: new Date(item.created_at).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+          waktu: new Date(item.created_at).toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          statusChat: item.status === "closed" ? "selesai" : "antrian",
+          status: item.status,
+          assigned_admin_id: item.assigned_admin_id,
+          sudahDimulai: item.assigned_admin_id === adminId,
+          unread_count: item.unread_count || 0,
+          riwayatChat: [],
+        }));
+        setDaftarPesan(formattedData);
+      }
+    } catch (error) {
+      console.error("Gagal memuat percakapan:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadMessageHistory = async (convId: number) => {
+    setKontakAktifId(convId);
+    try {
+      const res = await fetch(
+        `/api/live-chat/messages?conversationId=${convId}`,
+      );
+      const data = await res.json();
+      if (res.ok) {
+        const formattedMessages = data.map((msg: any) => ({
+          id: msg.id,
+          penulis: msg.sender_type === "customer" ? "pelanggan" : "admin",
+          teks: msg.message,
+          waktu: new Date(msg.created_at).toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          client_message_id: msg.client_message_id,
+        }));
+
+        setDaftarPesan((prev) =>
+          prev.map((p) =>
+            p.id === convId
+              ? { ...p, riwayatChat: formattedMessages, unread_count: 0 }
+              : p,
+          ),
+        );
+      } else {
+        console.error("Gagal memuat riwayat:", data.error);
+      }
+    } catch (error) {
+      console.error("Gagal memuat riwayat:", error);
+    }
+  };
+
+  const handleMulaiChat = (id: number) => {
+    if (!socket) {
+      Swal.fire({
+        icon: "error",
+        title: "Koneksi Error",
+        text: "Socket belum terhubung. Silakan refresh halaman.",
+      });
+      return;
+    }
+
+    socket.emit(
+      "conversation:claim",
+      { conversationId: id, adminId },
+      (response: any) => {
+        if (response.success) {
+          setDaftarPesan((prev) =>
+            prev.map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    sudahDimulai: true,
+                    status: "assigned",
+                    assigned_admin_id: adminId,
+                  }
+                : p,
+            ),
+          );
+          setKontakAktifId(id);
+          loadMessageHistory(id);
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "Gagal Mengambil Chat",
+            text: response.error || "Chat ini sudah diambil oleh admin lain.",
+          });
+        }
+      },
+    );
+  };
+
+  const handleKirimPesan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputPesan.trim() || !kontakAktifId || !socket) return;
+
+    const activeChat = daftarPesan.find((p) => p.id === kontakAktifId);
+    if (!activeChat?.sudahDimulai) return;
+
+    const clientMessageId = `admin-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const waktuSekarang = new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const optimisticMsg = {
+      id: Date.now(),
+      penulis: "admin" as const,
+      teks: inputPesan,
+      waktu: waktuSekarang,
+      client_message_id: clientMessageId,
+    };
+
+    setDaftarPesan((prev) =>
+      prev.map((p) =>
+        p.id === kontakAktifId
+          ? { ...p, riwayatChat: [...p.riwayatChat, optimisticMsg] }
+          : p,
+      ),
+    );
+    setInputPesan("");
+
+    socket.emit(
+      "message:send",
+      {
+        conversationId: kontakAktifId,
+        clientMessageId,
+        message: inputPesan,
+        senderType: "admin",
+      },
+      (response: any) => {
+        if (!response.success) {
+          Swal.fire({
+            icon: "error",
+            title: "Gagal Mengirim",
+            text: response.error,
+          });
+        }
+      },
+    );
+  };
+
+  const handleTandaiSelesai = (id: number) => {
+    if (!socket) return;
+    Swal.fire({
+      title: "Tutup Percakapan?",
+      text: "Customer tidak akan bisa membalas setelah ini.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Ya, Tutup",
+      cancelButtonText: "Batal",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        socket.emit(
+          "conversation:close",
+          { conversationId: id },
+          (response: any) => {
+            if (response.success) {
+              setKontakAktifId(null);
+              Swal.fire("Berhasil", "Percakapan telah ditutup.", "success");
+            }
+          },
+        );
+      }
+    });
+  };
 
   const pesanTersaringTab = daftarPesan.filter(
     (item) => item.statusChat === tabAktif,
   );
-
   const kontakTersaring = pesanTersaringTab.filter(
     (item) =>
-      item.pengirim.toLowerCase().includes(pencarian.toLowerCase()) ||
-      item.email.toLowerCase().includes(pencarian.toLowerCase()) ||
-      item.noHp.includes(pencarian),
+      item.pengirim?.toLowerCase().includes(pencarian.toLowerCase()) ||
+      item.noHp?.includes(pencarian) ||
+      item.email?.toLowerCase().includes(pencarian.toLowerCase()),
   );
 
   const kontakAktifList = kontakTersaring.filter((item) => item.sudahDimulai);
@@ -131,81 +369,7 @@ const PesanMasuk = () => {
   );
 
   const kontakAktif =
-    daftarPesan.find(
-      (item) => item.id === kontakAktifId && item.statusChat === tabAktif,
-    ) ||
-    kontakTersaring[0] ||
-    null;
-
-  useEffect(() => {
-    if (kontakAktif) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [kontakAktif?.riwayatChat, kontakAktifId]);
-
-  const handleMulaiChat = (id: number) => {
-    setDaftarPesan((prevDaftar) => {
-      const itemDitemukan = prevDaftar.find((item) => item.id === id);
-      if (!itemDitemukan) return prevDaftar;
-
-      const itemDiperbarui = {
-        ...itemDitemukan,
-        sudahDimulai: true,
-        statusBaca: "Dibaca" as const,
-      };
-
-      const sisaItem = prevDaftar.filter((item) => item.id !== id);
-      return [itemDiperbarui, ...sisaItem];
-    });
-    setKontakAktifId(id);
-  };
-
-  const handleKirimPesan = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputPesan.trim() || !kontakAktif || !kontakAktif.sudahDimulai) return;
-
-    const waktuSekarang = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const daftarBaru = daftarPesan.map((item) => {
-      if (item.id === kontakAktif.id) {
-        return {
-          ...item,
-          statusBaca: "Dibaca" as const,
-          riwayatChat: [
-            ...item.riwayatChat,
-            {
-              penulis: "admin" as const,
-              teks: inputPesan,
-              waktu: waktuSekarang,
-            },
-          ],
-        };
-      }
-      return item;
-    });
-
-    setDaftarPesan(daftarBaru);
-    setInputPesan("");
-  };
-
-  const handleTandaiSelesai = (id: number) => {
-    const daftarBaru = daftarPesan.map((item) => {
-      if (item.id === id) {
-        return { ...item, statusChat: "selesai" as const };
-      }
-      return item;
-    });
-    setDaftarPesan(daftarBaru);
-    const sisaAntrian = daftarBaru.filter(
-      (item) => item.statusChat === "antrian",
-    );
-    if (sisaAntrian.length > 0) {
-      setKontakAktifId(sisaAntrian[0].id);
-    }
-  };
+    daftarPesan.find((item) => item.id === kontakAktifId) || null;
 
   return (
     <div className="space-y-2 h-full flex flex-col">
@@ -241,7 +405,6 @@ const PesanMasuk = () => {
                 {daftarPesan.filter((i) => i.statusChat === "antrian").length})
               </span>
             </button>
-
             <button
               onClick={() => {
                 setTabAktif("riwayat");
@@ -269,7 +432,7 @@ const PesanMasuk = () => {
               <Search size={16} className="text-gray-400 mr-2" />
               <input
                 type="text"
-                placeholder="Cari nama, email, atau no HP..."
+                placeholder="Cari nama atau no HP..."
                 value={pencarian}
                 onChange={(e) => setPencarian(e.target.value)}
                 className="w-full bg-transparent text-xs focus:outline-none text-gray-800"
@@ -278,13 +441,16 @@ const PesanMasuk = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100 min-h-0">
-            {kontakTersaring.length === 0 ? (
+            {isLoading ? (
+              <div className="p-6 text-center text-gray-400 text-xs">
+                Memuat data...
+              </div>
+            ) : kontakTersaring.length === 0 ? (
               <div className="p-6 text-center text-gray-400 text-xs">
                 Tidak ada data pada tab {tabAktif}.
               </div>
             ) : (
               <>
-                {/* Section Sedang Ditangani (Sekarang ada nomor urutnya) */}
                 {tabAktif === "antrian" && kontakAktifList.length > 0 && (
                   <div>
                     <div className="bg-gray-100 px-3 py-1.5 text-[11px] font-extrabold text-gray-700 uppercase tracking-wider border-y border-gray-200">
@@ -294,23 +460,15 @@ const PesanMasuk = () => {
                       const pesanTerakhir =
                         kontak.riwayatChat[kontak.riwayatChat.length - 1];
                       const isAktif = kontak.id === kontakAktifId;
-
                       return (
                         <div
                           key={kontak.id}
-                          onClick={() => setKontakAktifId(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                            isAktif
-                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                              : "hover:bg-gray-50"
-                          }`}
+                          onClick={() => loadMessageHistory(kontak.id)}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
                         >
-                          <div className="relative">
-                            <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                              {kontak.avatar}
-                            </div>
+                          <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                            {kontak.avatar}
                           </div>
-
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-baseline mb-1">
                               <h4 className="font-bold text-gray-900 text-sm truncate">
@@ -344,7 +502,6 @@ const PesanMasuk = () => {
                   </div>
                 )}
 
-                {/* Section Antrian */}
                 {tabAktif === "antrian" && kontakAntrianList.length > 0 && (
                   <div>
                     <div className="bg-gray-100 px-3 py-1.5 text-[11px] font-extrabold text-gray-700 uppercase tracking-wider border-y border-gray-200">
@@ -354,23 +511,22 @@ const PesanMasuk = () => {
                       const pesanTerakhir =
                         kontak.riwayatChat[kontak.riwayatChat.length - 1];
                       const isAktif = kontak.id === kontakAktifId;
-
                       return (
                         <div
                           key={kontak.id}
-                          onClick={() => setKontakAktifId(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                            isAktif
-                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                              : "hover:bg-gray-50"
-                          }`}
+                          onClick={() => loadMessageHistory(kontak.id)}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
                         >
                           <div className="relative">
                             <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                               {kontak.avatar}
                             </div>
+                            {kontak.unread_count > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                                {kontak.unread_count}
+                              </span>
+                            )}
                           </div>
-
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-baseline mb-1">
                               <h4 className="font-bold text-gray-900 text-sm truncate">
@@ -381,10 +537,6 @@ const PesanMasuk = () => {
                               </span>
                             </div>
                             <p className="text-xs text-gray-600 truncate mb-1">
-                              {pesanTerakhir &&
-                              pesanTerakhir.penulis === "admin"
-                                ? "Anda: "
-                                : ""}
                               {pesanTerakhir
                                 ? pesanTerakhir.teks
                                 : "Belum ada pesan"}
@@ -404,29 +556,20 @@ const PesanMasuk = () => {
                   </div>
                 )}
 
-                {/* Tab Riwayat */}
                 {tabAktif === "riwayat" &&
                   kontakTersaring.map((kontak) => {
                     const pesanTerakhir =
                       kontak.riwayatChat[kontak.riwayatChat.length - 1];
                     const isAktif = kontak.id === kontakAktifId;
-
                     return (
                       <div
                         key={kontak.id}
-                        onClick={() => setKontakAktifId(kontak.id)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                          isAktif
-                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                            : "hover:bg-gray-50"
-                        }`}
+                        onClick={() => loadMessageHistory(kontak.id)}
+                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
                       >
-                        <div className="relative">
-                          <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                            {kontak.avatar}
-                          </div>
+                        <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                          {kontak.avatar}
                         </div>
-
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-baseline mb-1">
                             <h4 className="font-bold text-gray-900 text-sm truncate">
@@ -499,34 +642,36 @@ const PesanMasuk = () => {
               </div>
 
               <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-gradient-to-b from-gray-50 to-gray-100/50 min-h-0">
-                {kontakAktif.riwayatChat.map((chat, index) => {
-                  const dariAdmin = chat.penulis === "admin";
-
-                  return (
-                    <div
-                      key={index}
-                      className={`flex flex-col ${dariAdmin ? "items-end" : "items-start"}`}
-                    >
+                {kontakAktif.riwayatChat.length === 0 ? (
+                  <div className="text-center text-gray-400 text-sm py-8">
+                    Belum ada pesan dalam percakapan ini.
+                  </div>
+                ) : (
+                  kontakAktif.riwayatChat.map((chat, index) => {
+                    const dariAdmin = chat.penulis === "admin";
+                    return (
                       <div
-                        className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${
-                          dariAdmin
-                            ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
-                            : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
-                        }`}
+                        key={chat.client_message_id || chat.id}
+                        className={`flex flex-col ${dariAdmin ? "items-end" : "items-start"}`}
                       >
-                        <p className="leading-relaxed">{chat.teks}</p>
                         <div
-                          className={`flex items-center justify-end gap-1 mt-1 text-xs ${dariAdmin ? "text-gray-800 font-semibold" : "text-gray-400"}`}
+                          className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${
+                            dariAdmin
+                              ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
+                              : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
+                          }`}
                         >
-                          <span>{chat.waktu}</span>
-                          {dariAdmin && (
-                            <CheckCheck size={14} className="text-gray-950" />
-                          )}
+                          <p className="leading-relaxed">{chat.teks}</p>
+                          <div
+                            className={`flex items-center justify-end gap-1 mt-1 text-xs ${dariAdmin ? "text-gray-800 font-semibold" : "text-gray-400"}`}
+                          >
+                            <span>{chat.waktu}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
                 <div ref={chatEndRef} />
               </div>
 
@@ -536,8 +681,7 @@ const PesanMasuk = () => {
                     {!kontakAktif.sudahDimulai ? (
                       <div className="p-4 bg-white border-t border-gray-200 flex items-center justify-between">
                         <p className="text-xs text-gray-500 font-medium">
-                          Tekan tombol Mulai untuk mulai menangani dan membalas
-                          chat ini.
+                          Tekan tombol Mulai untuk menangani chat ini.
                         </p>
                         <button
                           onClick={() => handleMulaiChat(kontakAktif.id)}
@@ -553,21 +697,6 @@ const PesanMasuk = () => {
                           onSubmit={handleKirimPesan}
                           className="flex items-center gap-3"
                         >
-                          <button
-                            type="button"
-                            className="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                            title="Kirim Emoji"
-                          >
-                            <Smile size={20} />
-                          </button>
-                          <button
-                            type="button"
-                            className="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                            title="Lampirkan Berkas"
-                          >
-                            <Paperclip size={20} />
-                          </button>
-
                           <input
                             type="text"
                             placeholder="Ketik balasan pesan..."
@@ -575,7 +704,6 @@ const PesanMasuk = () => {
                             onChange={(e) => setInputPesan(e.target.value)}
                             className="flex-1 bg-gray-100 border border-gray-300 focus:border-yellow-400 focus:bg-white rounded-md px-4 py-3 text-sm focus:outline-none transition-all"
                           />
-
                           <button
                             type="submit"
                             className="bg-gray-950 hover:bg-gray-900 text-[#FFCC00] font-bold px-5 py-3 rounded-md flex items-center gap-2 transition-colors shadow-sm cursor-pointer text-xs"
@@ -588,8 +716,9 @@ const PesanMasuk = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500 font-medium">
-                    Percakapan ini telah selesai. Kotak balasan ditutup.
+                  <div className="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500 font-medium flex items-center justify-center gap-2">
+                    <Lock size={14} /> Percakapan ini telah selesai. Kotak
+                    balasan ditutup.
                   </div>
                 )}
               </div>

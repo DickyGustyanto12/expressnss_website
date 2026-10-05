@@ -1,50 +1,187 @@
-import { useState } from "react";
-import { Search, Plus, Edit, Trash2, ImageIcon } from "lucide-react";
+"use client";
+
+import { useState, useEffect } from "react";
+import { Search, Plus, Edit, Trash2, ImageIcon, X, Upload } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface BannerItem {
   id: number;
   judul: string;
   deskripsi: string;
-  status: "Aktif" | "Non-aktif";
+  gambar_url: string;
+  status: "aktif" | "non-aktif";
   urutan: number;
 }
 
 const BannerCarousel = () => {
-  const [daftarBanner, setDaftarBanner] = useState<BannerItem[]>([
-    {
-      id: 1,
-      judul: "Promo Diskon Ongkir Akhir Tahun",
-      deskripsi:
-        "Nikmati potongan harga khusus pengiriman reguler ke seluruh Nusantara.",
-      status: "Aktif",
-      urutan: 1,
-    },
-    {
-      id: 2,
-      judul: "Layanan Kargo & Distribusi Skala Besar",
-      deskripsi:
-        "Solusi aman dan cepat untuk pengiriman barang industri dan komersial.",
-      status: "Aktif",
-      urutan: 2,
-    },
-    {
-      id: 3,
-      judul: "Same Day Service Terpercaya",
-      deskripsi:
-        "Paket sampai di hari yang sama dengan jaminan ketepatan waktu.",
-      status: "Non-aktif",
-      urutan: 3,
-    },
-  ]);
-
+  const [daftarBanner, setDaftarBanner] = useState<BannerItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [pencarian, setPencarian] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  const [formData, setFormData] = useState({
+    id: 0,
+    urutan: 0,
+    judul: "",
+    deskripsi: "",
+    gambar_url: "",
+    status: "aktif" as "aktif" | "non-aktif",
+  });
+
+  useEffect(() => {
+    fetchBanners();
+  }, []);
+
+  const fetchBanners = async () => {
+    try {
+      const res = await fetch("/api/banners");
+      const data = await res.json();
+      if (res.ok) {
+        setDaftarBanner(data);
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Gagal Memuat Data",
+          text: data.error,
+        });
+      }
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Error Sistem",
+        text: "Tidak dapat terhubung ke server.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const bannerTersaring = daftarBanner.filter(
     (item) =>
       item.judul.toLowerCase().includes(pencarian.toLowerCase()) ||
       item.deskripsi.toLowerCase().includes(pencarian.toLowerCase()),
   );
+
+  const openModalTambah = () => {
+    setIsEdit(false);
+    setSelectedFile(null);
+    setPreviewUrl("");
+    setFormData({
+      id: 0,
+      urutan: daftarBanner.length + 1,
+      judul: "",
+      deskripsi: "",
+      gambar_url: "",
+      status: "aktif",
+    });
+    setShowModal(true);
+  };
+
+  const openModalEdit = (banner: BannerItem) => {
+    setIsEdit(true);
+    setSelectedFile(null);
+    setPreviewUrl(banner.gambar_url || "");
+    setFormData({
+      id: banner.id,
+      urutan: banner.urutan,
+      judul: banner.judul,
+      deskripsi: banner.deskripsi,
+      gambar_url: banner.gambar_url || "",
+      status: banner.status,
+    });
+    setShowModal(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({
+          icon: "error",
+          title: "File Terlalu Besar",
+          text: "Maksimal ukuran file adalah 5MB.",
+        });
+        return;
+      }
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      let finalImageUrl = formData.gambar_url;
+
+      if (selectedFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", selectedFile);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadFormData,
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Gagal mengupload gambar");
+        }
+        finalImageUrl = uploadData.url;
+      }
+
+      const url = "/api/banners";
+      const method = isEdit ? "PUT" : "POST";
+      const body = isEdit
+        ? { ...formData, gambar_url: finalImageUrl }
+        : {
+            urutan: formData.urutan,
+            judul: formData.judul,
+            deskripsi: formData.deskripsi,
+            gambar_url: finalImageUrl,
+            status: formData.status,
+          };
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        Swal.fire({
+          icon: "success",
+          title: "Berhasil!",
+          text: data.message,
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        setShowModal(false);
+        fetchBanners();
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Gagal",
+          text: data.error || "Terjadi kesalahan.",
+        });
+      }
+    } catch (error: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Error Sistem",
+        text: error.message || "Tidak dapat terhubung ke server.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleHapus = (id: number) => {
     Swal.fire({
@@ -56,14 +193,37 @@ const BannerCarousel = () => {
       cancelButtonColor: "#3085d6",
       confirmButtonText: "Ya, Hapus!",
       cancelButtonText: "Batal",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        setDaftarBanner(daftarBanner.filter((item) => item.id !== id));
-        Swal.fire(
-          "Terhapus!",
-          "Banner berhasil dihapus dari sistem.",
-          "success",
-        );
+        try {
+          const res = await fetch(`/api/banners?id=${id}`, {
+            method: "DELETE",
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            Swal.fire({
+              icon: "success",
+              title: "Terhapus!",
+              text: data.message || "Banner berhasil dihapus.",
+              timer: 1500,
+              showConfirmButton: false,
+            });
+            fetchBanners();
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: "Gagal",
+              text: data.error || "Terjadi kesalahan.",
+            });
+          }
+        } catch (error) {
+          Swal.fire({
+            icon: "error",
+            title: "Error Sistem",
+            text: "Tidak dapat terhubung ke server.",
+          });
+        }
       }
     });
   };
@@ -81,13 +241,7 @@ const BannerCarousel = () => {
           </p>
         </div>
         <button
-          onClick={() =>
-            Swal.fire(
-              "Informasi",
-              "Fitur tambah banner baru akan segera dibuka.",
-              "info",
-            )
-          }
+          onClick={openModalTambah}
           className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
         >
           <Plus size={16} />
@@ -121,7 +275,16 @@ const BannerCarousel = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {bannerTersaring.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-8 text-center text-gray-400"
+                  >
+                    Memuat data...
+                  </td>
+                </tr>
+              ) : bannerTersaring.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
@@ -153,25 +316,15 @@ const BannerCarousel = () => {
                     </td>
                     <td className="px-5 py-3">
                       <span
-                        className={`px-2 py-0.5 rounded-sm font-bold text-[10px] ${
-                          item.status === "Aktif"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
+                        className={`px-2 py-0.5 rounded-sm font-bold text-[10px] ${item.status === "aktif" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}
                       >
-                        {item.status}
+                        {item.status === "aktif" ? "Aktif" : "Non-aktif"}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() =>
-                            Swal.fire(
-                              "Edit",
-                              `Edit banner ID ${item.id}`,
-                              "info",
-                            )
-                          }
+                          onClick={() => openModalEdit(item)}
                           className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-sm transition-colors cursor-pointer"
                           title="Edit"
                         >
@@ -193,6 +346,166 @@ const BannerCarousel = () => {
           </table>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <h3 className="text-base font-extrabold text-gray-900">
+                {isEdit ? "Edit Banner" : "Tambah Banner Baru"}
+              </h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors cursor-pointer"
+              >
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Urutan Tampil
+                </label>
+                <input
+                  type="number"
+                  value={formData.urutan}
+                  onChange={(e) =>
+                    setFormData({ ...formData, urutan: Number(e.target.value) })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:border-transparent"
+                  required
+                  min={0}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Judul Banner
+                </label>
+                <input
+                  type="text"
+                  value={formData.judul}
+                  onChange={(e) =>
+                    setFormData({ ...formData, judul: e.target.value })
+                  }
+                  placeholder="Contoh: Promo Diskon Ongkir Akhir Tahun"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Deskripsi Singkat
+                </label>
+                <textarea
+                  value={formData.deskripsi}
+                  onChange={(e) =>
+                    setFormData({ ...formData, deskripsi: e.target.value })
+                  }
+                  placeholder="Deskripsi singkat tentang banner..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Gambar Banner
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center hover:border-[#FFCC00] transition-colors bg-gray-50">
+                  {previewUrl ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="max-h-40 mx-auto rounded-md object-cover shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setPreviewUrl(isEdit ? formData.gambar_url : "");
+                        }}
+                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full shadow-md transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center py-4">
+                      <Upload className="text-gray-400 mb-2" size={32} />
+                      <p className="text-xs text-gray-500 mb-3">
+                        Format: JPG, PNG, WEBP (Maks. 5MB)
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        id="banner-image-upload"
+                      />
+                      <label
+                        htmlFor="banner-image-upload"
+                        className="cursor-pointer bg-[#FFCC00] hover:bg-yellow-400 text-gray-900 px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-colors"
+                      >
+                        <ImageIcon size={14} />
+                        Pilih Gambar
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as "aktif" | "non-aktif",
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] focus:border-transparent bg-white"
+                >
+                  <option value="aktif">Aktif</option>
+                  <option value="non-aktif">Non-aktif</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 text-xs font-extrabold bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin"></div>
+                      Menyimpan...
+                    </>
+                  ) : isEdit ? (
+                    "Simpan Perubahan"
+                  ) : (
+                    "Tambah Banner"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

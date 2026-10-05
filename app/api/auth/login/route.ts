@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
+
+const JWT_SECRET =
+  process.env.JWT_SECRET || "fallback_secret_ganti_dengan_yang_aman";
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const [rows] = await pool.execute<RowDataPacket[]>(
-      "SELECT * FROM users WHERE email = ?",
+      "SELECT id, nama, email, password, role FROM users WHERE email = ?",
       [email],
     );
 
@@ -28,7 +32,6 @@ export async function POST(request: Request) {
     }
 
     const user = rows[0];
-
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
@@ -38,9 +41,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1d" },
+    );
+
     return NextResponse.json({
       success: true,
       message: "Login berhasil",
+      token,
       user: {
         id: user.id,
         nama: user.nama,
@@ -48,10 +58,10 @@ export async function POST(request: Request) {
         role: user.role,
       },
     });
-  } catch (error: any) {
-    console.error("Error API Login:", error.message);
+  } catch (error) {
+    console.error("Error API Login:", error);
     return NextResponse.json(
-      { success: false, message: `Server error: ${error.message}` },
+      { success: false, message: "Terjadi kesalahan pada server." },
       { status: 500 },
     );
   }

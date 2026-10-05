@@ -1,44 +1,43 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
-import { hashToken } from "@/lib/internal/live-chat";
+import type { ResultSetHeader } from "mysql2";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { nama, whatsapp } = body;
+    const { customer_name, customer_whatsapp } = body;
 
-    if (!nama || !whatsapp) {
+    if (!customer_name || !customer_whatsapp) {
       return NextResponse.json(
-        { message: "Nama dan nomor WhatsApp wajib diisi." },
+        { error: "Nama dan nomor WhatsApp wajib diisi" },
         { status: 400 },
       );
     }
 
-    // Membuat token acak mentah untuk sesi customer
     const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
 
-    // Melakukan hashing token menggunakan helper terpusat
-    const tokenHash = hashToken(rawToken);
-
-    // Menyimpan data percakapan baru ke database MySQL
-    const [result] = await pool.execute(
-      `INSERT INTO live_chat_conversations (customer_name, customer_whatsapp, customer_token_hash, status, created_at, updated_at)
-       VALUES (?, ?, ?, 'open', NOW(), NOW())`,
-      [nama, whatsapp, tokenHash],
+    const [result] = await pool.execute<ResultSetHeader>(
+      "INSERT INTO live_chat_conversations (customer_name, customer_whatsapp, public_token_hash, status) VALUES (?, ?, ?, 'open')",
+      [customer_name, customer_whatsapp, tokenHash],
     );
 
-    const conversationId = (result as any).insertId;
-
-    return NextResponse.json({
-      success: true,
-      conversationId: conversationId,
-      token: rawToken,
-    });
-  } catch (error: any) {
-    console.error("Gagal membuat sesi live chat:", error);
     return NextResponse.json(
-      { message: "Terjadi kesalahan pada server." },
+      {
+        success: true,
+        conversationId: result.insertId,
+        token: rawToken,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("Error start chat:", error);
+    return NextResponse.json(
+      { error: "Gagal memulai percakapan" },
       { status: 500 },
     );
   }

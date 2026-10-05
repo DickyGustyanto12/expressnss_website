@@ -2,14 +2,40 @@
 
 import { useState, useEffect } from "react";
 
+interface BannerItem {
+  id: number;
+  judul: string;
+  deskripsi: string;
+  gambar_url: string;
+  status: string;
+  urutan: number;
+}
+
 interface BannerProps {
   onBukaChat?: () => void;
 }
 
 const Banner = ({ onBukaChat }: BannerProps) => {
-  const slides = ["/banner1.webp", "/banner2.webp", "/banner3.webp"];
-
+  const [slides, setSlides] = useState<BannerItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const res = await fetch("/api/banners");
+        const data = await res.json();
+        if (res.ok) {
+          const activeBanners = data
+            .filter((b: BannerItem) => b.status === "aktif")
+            .sort((a: BannerItem, b: BannerItem) => a.urutan - b.urutan);
+          setSlides(activeBanners);
+        }
+      } catch (error) {
+        console.error("Gagal memuat banner:", error);
+      }
+    };
+    fetchBanners();
+  }, []);
 
   const nextSlide = () => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % slides.length);
@@ -53,8 +79,8 @@ const Banner = ({ onBukaChat }: BannerProps) => {
 
       {slides.map((slide, index) => (
         <img
-          key={index}
-          src={slide}
+          key={slide.id}
+          src={slide.gambar_url}
           alt={`Banner NSS Express ${index + 1}`}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
             index === currentIndex ? "opacity-100 z-0" : "opacity-0 -z-10"
