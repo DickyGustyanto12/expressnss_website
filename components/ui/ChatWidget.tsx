@@ -52,11 +52,11 @@ const ChatWidget = ({
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isClosed, setIsClosed] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
+  const [showHumanButton, setShowHumanButton] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Socket hanya aktif di mode "live"
   const { socket, status } = useLiveChatSocket(
     chatMode === "live" ? token : null,
     chatMode === "live" ? conversationId : null,
@@ -71,7 +71,6 @@ const ChatWidget = ({
     scrollToBottom();
   }, [daftarPesan, isAiThinking]);
 
-  // Socket listener untuk pesan dari Admin (Human)
   useEffect(() => {
     if (!socket || chatMode !== "live") return;
 
@@ -108,7 +107,6 @@ const ChatWidget = ({
 
   const dapatkanWaktuSekarang = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // 1. Handler untuk AI Chat
   const handleAiMessage = async () => {
     if (!pesanInput.trim() || isAiThinking) return;
 
@@ -150,14 +148,12 @@ const ChatWidget = ({
     } finally {
       setIsAiThinking(false);
 
-      // Jika sudah 3 pesan dari user, arahkan ke form human
       if (userMessageCount + 1 >= 3) {
-        setTimeout(() => setChatMode("form"), 1500);
+        setTimeout(() => setShowHumanButton(true), 1000);
       }
     }
   };
 
-  // 2. Handler untuk Transisi ke Live Chat Human
   const handleMulaiLiveChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nama.trim() || !nomorHp.trim()) {
@@ -201,7 +197,6 @@ const ChatWidget = ({
     }
   };
 
-  // 3. Handler untuk Live Chat (Socket)
   const handleKirimPesanLive = () => {
     if (isClosed || !pesanInput.trim() || !socket || !conversationId) return;
 
@@ -238,6 +233,7 @@ const ChatWidget = ({
     setToken(null);
     setIsClosed(false);
     setUserMessageCount(0);
+    setShowHumanButton(false);
     localStorage.removeItem("live_chat_token");
     localStorage.removeItem("live_chat_conversation_id");
   };
@@ -253,7 +249,6 @@ const ChatWidget = ({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-[90vw] sm:w-[380px] max-w-[400px] bg-white rounded-sm shadow-2xl overflow-hidden border-2 border-[#FFCC00] mb-3 flex flex-col h-[550px] max-h-[85vh]"
           >
-            {/* Header Dinamis */}
             <div className="bg-[#FFCC00] text-black px-3.5 py-3 flex items-center justify-between shadow-sm border-b border-yellow-400 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
@@ -276,14 +271,12 @@ const ChatWidget = ({
               </button>
             </div>
 
-            {/* KONTEN BERDASARKAN MODE */}
             <div className="flex flex-col flex-1 bg-slate-50 overflow-hidden">
 
-              {/* MODE 1: AI CHAT */}
-              {chatMode === "ai" && (
+              {(chatMode === "ai" || chatMode === "form") && (
                 <>
                   <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                    {daftarPesan.length === 0 && (
+                    {daftarPesan.length === 0 && chatMode === "ai" && (
                       <div className="bg-white border border-gray-200 rounded-sm p-3 text-xs text-gray-700 shadow-sm mb-2">
                         <p className="font-bold mb-2 flex items-center gap-2"><Bot size={14} /> Halo! Saya asisten virtual NSS Express.</p>
                         <p className="mb-3">Silakan pilih pertanyaan di bawah atau ketik pertanyaan Anda:</p>
@@ -317,75 +310,84 @@ const ChatWidget = ({
                     <div ref={messagesEndRef} />
                   </div>
 
-                  <div className="p-2.5 bg-white border-t border-gray-200 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={pesanInput}
-                        onChange={(e) => setPesanInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleAiMessage()}
-                        placeholder="Ketik pertanyaan Anda..."
-                        disabled={isAiThinking}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400 disabled:bg-gray-100"
-                      />
-                      <button
-                        onClick={handleAiMessage}
-                        disabled={!pesanInput.trim() || isAiThinking}
-                        className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
-                      >
-                        <Send size={14} />
-                      </button>
+                  {chatMode === "form" && (
+                    <div className="p-4 bg-yellow-50 border-t border-yellow-200 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-[#FFCC00] shrink-0">
+                          <Users size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-extrabold text-gray-900 text-sm mb-1">Butuh Bantuan Lebih Lanjut?</h3>
+                          <p className="text-xs text-gray-600 mb-3">
+                            Silakan terhubung langsung dengan tim Customer Service kami untuk penanganan yang lebih spesifik.
+                          </p>
+                          <form onSubmit={handleMulaiLiveChat} className="space-y-2">
+                            <input
+                              type="text"
+                              required
+                              value={nama}
+                              onChange={(e) => setNama(e.target.value)}
+                              placeholder="Nama Lengkap Anda"
+                              className="w-full px-3 py-2 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
+                            />
+                            <input
+                              type="tel"
+                              required
+                              value={nomorHp}
+                              onChange={(e) => setNomorHp(e.target.value)}
+                              placeholder="Nomor WhatsApp"
+                              className="w-full px-3 py-2 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
+                            />
+                            <button
+                              type="submit"
+                              disabled={isSubmitting}
+                              className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <><Phone size={16} /> Hubungi Customer Service</>}
+                            </button>
+                          </form>
+                          <button onClick={() => setChatMode("ai")} className="w-full text-xs text-gray-500 hover:text-gray-800 underline mt-1">
+                            Kembali ke Asisten Virtual
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {chatMode === "ai" && (
+                    <div className="p-2.5 bg-white border-t border-gray-200 shrink-0 space-y-2">
+                      {showHumanButton && (
+                        <button
+                          onClick={() => setChatMode("form")}
+                          className="w-full bg-gradient-to-r from-[#FFCC00] to-yellow-400 hover:from-yellow-400 hover:to-[#FFCC00] text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 animate-pulse"
+                        >
+                          <Users size={14} /> Hubungi Customer Service Manusia
+                        </button>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={pesanInput}
+                          onChange={(e) => setPesanInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleAiMessage()}
+                          placeholder="Ketik pertanyaan Anda..."
+                          disabled={isAiThinking}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-900 placeholder:text-gray-400 disabled:bg-gray-100"
+                        />
+                        <button
+                          onClick={handleAiMessage}
+                          disabled={!pesanInput.trim() || isAiThinking}
+                          className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
+                        >
+                          <Send size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
-              {/* MODE 2: FORM TRANSISI KE HUMAN (Muncul setelah 3 chat) */}
-              {chatMode === "form" && (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 overflow-y-auto">
-                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center text-[#FFCC00]">
-                    <Users size={32} />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-lg mb-2">Butuh Bantuan Lebih Lanjut?</h3>
-                    <p className="text-sm text-gray-600 mb-6">
-                      Untuk penanganan yang lebih spesifik, silakan terhubung langsung dengan tim Customer Service manusia kami.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleMulaiLiveChat} className="w-full space-y-3 text-left">
-                    <input
-                      type="text"
-                      required
-                      value={nama}
-                      onChange={(e) => setNama(e.target.value)}
-                      placeholder="Nama Lengkap Anda"
-                      className="w-full px-3 py-2.5 rounded-sm border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00]"
-                    />
-                    <input
-                      type="tel"
-                      required
-                      value={nomorHp}
-                      onChange={(e) => setNomorHp(e.target.value)}
-                      placeholder="Nomor WhatsApp"
-                      className="w-full px-3 py-2.5 rounded-sm border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00]"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-3 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <><Phone size={16} /> Hubungi Customer Service</>}
-                    </button>
-                  </form>
-                  <button onClick={() => setChatMode("ai")} className="text-xs text-gray-500 hover:text-gray-800 underline">
-                    Kembali ke Asisten Virtual
-                  </button>
-                </div>
-              )}
-
-              {/* MODE 3: LIVE CHAT DENGAN HUMAN */}
               {chatMode === "live" && (
                 <>
                   <div className="px-3 py-1.5 bg-yellow-100 border-b border-yellow-200 flex items-center justify-between text-[11px] text-gray-800 shrink-0">
@@ -424,7 +426,7 @@ const ChatWidget = ({
                             onKeyDown={(e) => e.key === "Enter" && handleKirimPesanLive()}
                             placeholder={status === "connected" ? "Ketik pesan Anda..." : "Menunggu koneksi..."}
                             disabled={status !== "connected" || isClosed}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-900 placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                           <button
                             onClick={handleKirimPesanLive}
@@ -444,7 +446,6 @@ const ChatWidget = ({
         )}
       </AnimatePresence>
 
-      {/* Floating Button */}
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
