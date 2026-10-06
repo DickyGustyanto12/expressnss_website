@@ -12,6 +12,7 @@ import {
   Loader2,
   WifiOff,
   Wifi,
+  Lock,
 } from "lucide-react";
 import { useLiveChatSocket } from "../../app/hooks/use-live-chat-socket";
 
@@ -46,6 +47,7 @@ const ChatWidget = ({
   const [token, setToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isClosed, setIsClosed] = useState(false); // State untuk tracking chat ditutup
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +99,23 @@ const ChatWidget = ({
       socket.off("message:new", handleMessageNew);
     };
   }, [socket]);
+
+  // PERBAIKAN: Dengarkan event ketika admin menutup chat
+  useEffect(() => {
+    if (!socket || !conversationId) return;
+
+    const handleConversationUpdated = (data: any) => {
+      if (data.conversationId === parseInt(conversationId) && data.status === "closed") {
+        setIsClosed(true);
+      }
+    };
+
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      socket.off("conversation:updated", handleConversationUpdated);
+    };
+  }, [socket, conversationId]);
 
   useEffect(() => {
     if (
@@ -200,6 +219,7 @@ const ChatWidget = ({
       setToken(data.token);
       setConversationId(data.conversationId.toString());
       setSudahMulai(true);
+      setIsClosed(false); // Reset status closed saat mulai chat baru
 
       localStorage.setItem("live_chat_token", data.token);
       localStorage.setItem(
@@ -225,6 +245,8 @@ const ChatWidget = ({
   };
 
   const handleKirimPesan = () => {
+    if (isClosed) return; // CEGAH KIRIM JIKA CHAT SUDAH DITUTUP
+
     console.log("📤 [CUSTOMER] handleKirimPesan dipanggil");
     console.log("📤 [CUSTOMER] State saat ini:", {
       pesanInput,
@@ -251,7 +273,6 @@ const ChatWidget = ({
     const clientMessageId = `web-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const teksKirim = pesanInput;
 
-    // Optimistic update: tampilkan pesan di UI segera
     const pesanBaruUser: PesanChat = {
       id: Date.now(),
       pengirim: "user",
@@ -270,7 +291,6 @@ const ChatWidget = ({
       senderType: "customer",
     });
 
-    // PERBAIKAN: Tambahkan callback function di sini
     socket.emit(
       "message:send",
       {
@@ -449,6 +469,7 @@ const ChatWidget = ({
                       setConversationId(null);
                       setToken(null);
                       setDaftarPesan([]);
+                      setIsClosed(false); // Reset state closed
                       localStorage.removeItem("live_chat_token");
                       localStorage.removeItem("live_chat_conversation_id");
                     }}
@@ -477,11 +498,10 @@ const ChatWidget = ({
                       className={`flex flex-col ${msg.pengirim === "user" ? "items-end" : "items-start"}`}
                     >
                       <div
-                        className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
-                          msg.pengirim === "user"
-                            ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none"
-                            : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
-                        }`}
+                        className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${msg.pengirim === "user"
+                          ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none"
+                          : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
+                          }`}
                       >
                         {msg.teks}
                       </div>
@@ -494,30 +514,40 @@ const ChatWidget = ({
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="p-2.5 bg-white border-t border-gray-200 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={pesanInput}
-                      onChange={(e) => setPesanInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleKirimPesan()}
-                      placeholder={
-                        status === "connected"
-                          ? "Ketik pesan Anda..."
-                          : "Menunggu koneksi..."
-                      }
-                      disabled={status !== "connected"}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400 disabled:bg-gray-100"
-                    />
-                    <button
-                      onClick={handleKirimPesan}
-                      disabled={!pesanInput.trim() || status !== "connected"}
-                      className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
-                    >
-                      <Send size={14} />
-                    </button>
-                  </div>
+                {/* PERBAIKAN: Tampilkan pesan terkunci jika isClosed true */}
+                <div className="shrink-0">
+                  {isClosed ? (
+                    <div className="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500 font-medium flex flex-col items-center justify-center gap-2">
+                      <Lock size={14} />
+                      <span>Percakapan ini telah selesai. Kotak balasan ditutup.</span>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-white border-t border-gray-200 shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={pesanInput}
+                          onChange={(e) => setPesanInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleKirimPesan()}
+                          placeholder={
+                            status === "connected"
+                              ? "Ketik pesan Anda..."
+                              : "Menunggu koneksi..."
+                          }
+                          disabled={status !== "connected" || isClosed}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-800 placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          onClick={handleKirimPesan}
+                          disabled={!pesanInput.trim() || status !== "connected" || isClosed}
+                          className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
+                        >
+                          <Send size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

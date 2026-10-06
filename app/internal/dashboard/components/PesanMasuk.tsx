@@ -217,16 +217,12 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
             const isClosed = data.status === "closed";
             return {
               ...p,
-              pengirim: data.customerName ?? p.pengirim,
-              noHp: data.customerWhatsapp ?? p.noHp,
-              email: data.customerEmail ?? p.email,
-              avatar: data.customerName ? data.customerName.substring(0, 2).toUpperCase() : p.avatar,
               status: data.status ?? p.status,
               statusChat: isClosed ? "selesai" : p.statusChat,
               assigned_admin_id: data.assignedAdminId ?? p.assigned_admin_id,
               sudahDimulai:
-                data.assignedAdminId !== undefined && data.assignedAdminId !== null
-                  ? Number(data.assignedAdminId) === Number(adminId)
+                data.assignedAdminId !== undefined
+                  ? data.assignedAdminId === adminId
                   : p.sudahDimulai,
             };
           }
@@ -301,11 +297,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
             prev.map((p) =>
               p.id === id
                 ? {
-                    ...p,
-                    sudahDimulai: true,
-                    status: "assigned",
-                    assigned_admin_id: adminId,
-                  }
+                  ...p,
+                  sudahDimulai: true,
+                  status: "assigned",
+                  assigned_admin_id: adminId,
+                }
                 : p,
             ),
           );
@@ -397,9 +393,13 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     });
   };
 
-  const pesanTersaringTab = daftarPesan.filter(
-    (item) => item.statusChat === tabAktif,
-  );
+  const pesanTersaringTab = daftarPesan.filter((item) => {
+    if (tabAktif === "riwayat") {
+      return item.status === "closed";
+    }
+    return item.statusChat === "antrian";
+  });
+
   const kontakTersaring = pesanTersaringTab.filter(
     (item) =>
       item.pengirim?.toLowerCase().includes(pencarian.toLowerCase()) ||
@@ -430,11 +430,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           <div className="grid grid-cols-2 bg-gray-100 p-1.5 border-b border-gray-200 gap-1 shrink-0">
             <button
               onClick={() => setTabAktif("antrian")}
-              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${
-                tabAktif === "antrian"
-                  ? "bg-white text-gray-950 shadow-xs border border-gray-200"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
+              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${tabAktif === "antrian"
+                ? "bg-white text-gray-950 shadow-xs border border-gray-200"
+                : "text-gray-600 hover:text-gray-900"
+                }`}
             >
               <ListOrdered size={16} />
               <span>
@@ -444,11 +443,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
             </button>
             <button
               onClick={() => setTabAktif("riwayat")}
-              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${
-                tabAktif === "riwayat"
-                  ? "bg-white text-gray-950 shadow-xs border border-gray-200"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
+              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${tabAktif === "riwayat"
+                ? "bg-white text-gray-950 shadow-xs border border-gray-200"
+                : "text-gray-600 hover:text-gray-900"
+                }`}
             >
               <History size={16} />
               <span>
@@ -495,11 +493,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                            isAktif
-                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                              : "hover:bg-gray-50"
-                          }`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
+                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                            : "hover:bg-gray-50"
+                            }`}
                         >
                           <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                             {kontak.avatar}
@@ -515,7 +512,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                             </div>
                             <p className="text-xs text-gray-600 truncate mb-1">
                               {pesanTerakhir &&
-                              pesanTerakhir.penulis === "admin"
+                                pesanTerakhir.penulis === "admin"
                                 ? "Anda: "
                                 : ""}
                               {pesanTerakhir
@@ -550,11 +547,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                            isAktif
-                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                              : "hover:bg-gray-50"
-                          }`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
+                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                            : "hover:bg-gray-50"
+                            }`}
                         >
                           <div className="relative">
                             <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
@@ -604,11 +600,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                       <div
                         key={kontak.id}
                         onClick={() => loadMessageHistory(kontak.id)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
-                          isAktif
-                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                            : "hover:bg-gray-50"
-                        }`}
+                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
+                          ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                          : "hover:bg-gray-50"
+                          }`}
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                           {kontak.avatar}
@@ -698,11 +693,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         className={`flex flex-col ${dariAdmin ? "items-end" : "items-start"}`}
                       >
                         <div
-                          className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${
-                            dariAdmin
-                              ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
-                              : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
-                          }`}
+                          className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${dariAdmin
+                            ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
+                            : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
+                            }`}
                         >
                           <p className="leading-relaxed">{chat.teks}</p>
                           <div
