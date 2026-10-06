@@ -259,7 +259,7 @@ const ChatWidget = ({
                 </div>
                 <div>
                   <h4 className="font-extrabold text-sm leading-tight text-black">
-                    {chatMode === "ai" ? "Asisten Virtual NSS" : "Customer Service"}
+                    {chatMode === "ai" ? "Customer Service" : "Customer Service"}
                   </h4>
                   <p className="text-[10px] text-black font-bold">
                     {chatMode === "ai" ? "Siap Membantu 24/7" : status === "connected" ? "Tersambung" : "Menghubungkan..."}
@@ -343,7 +343,7 @@ const ChatWidget = ({
                               disabled={isSubmitting}
                               className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <><Phone size={16} /> Hubungi Customer Service</>}
+                              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <><Phone size={16} /> Hubungkan dengan Customer Service</>}
                             </button>
                           </form>
                           <button onClick={() => setChatMode("ai")} className="w-full text-xs text-gray-500 hover:text-gray-800 underline mt-1">
@@ -359,9 +359,9 @@ const ChatWidget = ({
                       {showHumanButton && (
                         <button
                           onClick={() => setChatMode("form")}
-                          className="w-full bg-gradient-to-r from-[#FFCC00] to-yellow-400 hover:from-yellow-400 hover:to-[#FFCC00] text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 animate-pulse"
+                          className="w-full bg-gradient-to-r from-[#FFCC00] to-yellow-400 hover:from-yellow-400 hover:to-[#FFCC00] text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
                         >
-                          <Users size={14} /> Hubungi Customer Service Manusia
+                          <Users size={14} /> Hubungkan dengan Customer Service
                         </button>
                       )}
                       <div className="flex items-center gap-1.5">
