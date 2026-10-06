@@ -225,11 +225,33 @@ const ChatWidget = ({
   };
 
   const handleKirimPesan = () => {
-    if (!pesanInput.trim() || !socket || !conversationId) return;
+    console.log("📤 [CUSTOMER] handleKirimPesan dipanggil");
+    console.log("📤 [CUSTOMER] State saat ini:", {
+      pesanInput,
+      conversationId,
+      socketConnected: socket?.connected,
+      socketExists: !!socket,
+    });
+
+    if (!pesanInput.trim()) {
+      console.error("❌ [CUSTOMER] Pesan kosong, dibatalkan.");
+      return;
+    }
+
+    if (!socket) {
+      console.error("❌ [CUSTOMER] Socket null, tidak bisa mengirim.");
+      return;
+    }
+
+    if (!conversationId) {
+      console.error("❌ [CUSTOMER] Conversation ID null, tidak bisa mengirim.");
+      return;
+    }
 
     const clientMessageId = `web-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const teksKirim = pesanInput;
 
+    // Optimistic update: tampilkan pesan di UI segera
     const pesanBaruUser: PesanChat = {
       id: Date.now(),
       pengirim: "user",
@@ -241,12 +263,30 @@ const ChatWidget = ({
     setDaftarPesan((prev) => [...prev, pesanBaruUser]);
     setPesanInput("");
 
-    socket.emit("message:send", {
+    console.log("📤 [CUSTOMER] Mengirim event 'message:send' ke server:", {
       conversationId: parseInt(conversationId),
       clientMessageId,
       message: teksKirim,
       senderType: "customer",
     });
+
+    // PERBAIKAN: Tambahkan callback function di sini
+    socket.emit(
+      "message:send",
+      {
+        conversationId: parseInt(conversationId),
+        clientMessageId,
+        message: teksKirim,
+        senderType: "customer",
+      },
+      (response: any) => {
+        console.log("📨 [CUSTOMER] Respons dari server:", response);
+        if (!response || !response.success) {
+          console.error("❌ [CUSTOMER] Gagal mengirim pesan:", response);
+          alert(response?.error || "Gagal mengirim pesan. Silakan coba lagi.");
+        }
+      },
+    );
   };
 
   const handleBukaWhatsAppLangsung = () => {

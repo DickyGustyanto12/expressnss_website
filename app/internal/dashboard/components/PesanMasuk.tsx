@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search,
   Send,
@@ -51,129 +51,29 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const kontakAktifIdRef = useRef<number | null>(kontakAktifId);
+  const hasLoadedRef = useRef(false);
+  const listenersAttachedRef = useRef(false);
 
-  const { socket, status } = useLiveChatSocket(null, null, true);
+  useEffect(() => {
+    kontakAktifIdRef.current = kontakAktifId;
+  }, [kontakAktifId]);
+
+  const { socket, status } = useLiveChatSocket(null, null, true, adminId);
 
   useEffect(() => {
     if (kontakAktifId) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [
-    daftarPesan.find((p) => p.id === kontakAktifId)?.riwayatChat,
-    kontakAktifId,
-  ]);
+  }, [daftarPesan, kontakAktifId]);
 
-  useEffect(() => {
-    if (socket && status === "connected") {
-      socket.emit("admins:live-chat:join");
-      loadConversations();
-    }
-  }, [socket, status]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on("conversation:new", (data: any) => {
-      setDaftarPesan((prev) => {
-        if (prev.find((p) => p.id === data.id)) return prev;
-        return [
-          {
-            ...data,
-            pengirim: data.customer_name || "Unknown",
-            email: data.customer_email || "",
-            noHp: data.customer_whatsapp || "",
-            avatar: (data.customer_name || "UN").substring(0, 2).toUpperCase(),
-            tanggal: new Date(data.created_at).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }),
-            waktu: new Date(data.created_at).toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            statusChat: "antrian",
-            sudahDimulai: false,
-            riwayatChat: [],
-          },
-          ...prev,
-        ];
-      });
-    });
-
-    socket.on("conversation:updated", (data: any) => {
-      setDaftarPesan((prev) =>
-        prev.map((p) => {
-          if (p.id === data.conversationId) {
-            const isClosed = data.status === "closed";
-            return {
-              ...p,
-              status: data.status,
-              statusChat: isClosed ? "selesai" : "antrian",
-              assigned_admin_id: data.assignedAdminId,
-              sudahDimulai: data.assignedAdminId === adminId,
-            };
-          }
-          return p;
-        }),
-      );
-    });
-
-    socket.on("message:new", (data: any) => {
-      setDaftarPesan((prev) =>
-        prev.map((p) => {
-          if (p.id === data.conversationId) {
-            const isDuplicate = p.riwayatChat.some(
-              (msg) =>
-                msg.id === data.id ||
-                msg.client_message_id === data.clientMessageId,
-            );
-            if (isDuplicate) return p;
-
-            // PERBAIKAN: Tambahkan type annotation eksplisit di sini
-            const newMsg: {
-              id: number;
-              penulis: "pelanggan" | "admin";
-              teks: string;
-              waktu: string;
-              client_message_id?: string;
-            } = {
-              id: data.id,
-              penulis: data.senderType === "customer" ? "pelanggan" : "admin",
-              teks: data.message,
-              waktu: new Date(data.createdAt).toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              client_message_id: data.clientMessageId,
-            };
-
-            const isActive = p.id === kontakAktifId;
-            return {
-              ...p,
-              unread_count: isActive ? 0 : (p.unread_count || 0) + 1,
-              riwayatChat: [...p.riwayatChat, newMsg],
-            };
-          }
-          return p;
-        }),
-      );
-    });
-
-    return () => {
-      socket.off("conversation:new");
-      socket.off("conversation:updated");
-      socket.off("message:new");
-    };
-  }, [socket, kontakAktifId, adminId]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/live-chat/conversations");
       const data = await res.json();
       if (res.ok) {
-        const formattedData = data.map((item: any) => ({
+        const formattedData: Pesan[] = data.map((item: any) => ({
           id: item.id,
           pengirim: item.customer_name || "Unknown",
           email: item.customer_email || "",
@@ -191,30 +91,176 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           statusChat: item.status === "closed" ? "selesai" : "antrian",
           status: item.status,
           assigned_admin_id: item.assigned_admin_id,
-          sudahDimulai: item.assigned_admin_id === adminId,
+          sudahDimulai: item.assigned_admin_id !== null && Number(item.assigned_admin_id) === Number(adminId),
           unread_count: item.unread_count || 0,
           riwayatChat: [],
         }));
-        setDaftarPesan(formattedData);
+
+        setDaftarPesan((prev) => {
+          return formattedData.map((newItem) => {
+            const existing = prev.find((p) => p.id === newItem.id);
+            if (existing) {
+              return {
+                ...newItem,
+                riwayatChat: existing.riwayatChat,
+                unread_count: existing.unread_count,
+              };
+            }
+            return newItem;
+          });
+        });
       }
     } catch (error) {
       console.error("Gagal memuat percakapan:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [adminId]);
+
+  useEffect(() => {
+    if (socket && status === "connected" && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadConversations();
+    }
+  }, [socket, status, loadConversations]);
+
+  useEffect(() => {
+    if (!socket || status !== "connected") return;
+    if (listenersAttachedRef.current) return;
+
+    listenersAttachedRef.current = true;
+
+    const handleMessageNew = (data: any) => {
+      setDaftarPesan((prev) => {
+        const targetIndex = prev.findIndex((p) => p.id === data.conversationId);
+
+        if (targetIndex === -1) {
+          return [
+            {
+              id: data.conversationId,
+              pengirim: "Unknown",
+              email: "",
+              noHp: "",
+              avatar: "UN",
+              tanggal: new Date().toLocaleDateString("id-ID"),
+              waktu: new Date().toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              statusChat: "antrian",
+              status: "open",
+              assigned_admin_id: null,
+              sudahDimulai: false,
+              unread_count: 1,
+              riwayatChat: [
+                {
+                  id: data.id,
+                  penulis: "pelanggan" as const,
+                  teks: data.message,
+                  waktu: new Date(data.createdAt).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  client_message_id: data.clientMessageId,
+                },
+              ],
+            },
+            ...prev,
+          ];
+        }
+
+        const isDuplicate = prev[targetIndex].riwayatChat.some(
+          (msg) =>
+            msg.id === data.id ||
+            msg.client_message_id === data.clientMessageId,
+        );
+        if (isDuplicate) return prev;
+
+        const penulisValue: "pelanggan" | "admin" =
+          data.senderType === "customer" ? "pelanggan" : "admin";
+
+        const newMsg = {
+          id: data.id,
+          penulis: penulisValue,
+          teks: data.message,
+          waktu: new Date(data.createdAt).toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          client_message_id: data.clientMessageId,
+        };
+
+        const newPrev = [...prev];
+        const isActive = newPrev[targetIndex].id === kontakAktifIdRef.current;
+
+        newPrev[targetIndex] = {
+          ...newPrev[targetIndex],
+          unread_count: isActive
+            ? 0
+            : (newPrev[targetIndex].unread_count || 0) + 1,
+          riwayatChat: [...newPrev[targetIndex].riwayatChat, newMsg],
+        };
+
+        if (data.senderType === "customer" && !isActive) {
+          const [updatedChat] = newPrev.splice(targetIndex, 1);
+          newPrev.unshift(updatedChat);
+        }
+
+        return newPrev;
+      });
+    };
+
+    const handleConversationUpdated = (data: any) => {
+      setDaftarPesan((prev) =>
+        prev.map((p) => {
+          if (p.id === data.conversationId) {
+            const isClosed = data.status === "closed";
+            return {
+              ...p,
+              pengirim: data.customerName ?? p.pengirim,
+              noHp: data.customerWhatsapp ?? p.noHp,
+              email: data.customerEmail ?? p.email,
+              avatar: data.customerName ? data.customerName.substring(0, 2).toUpperCase() : p.avatar,
+              status: data.status ?? p.status,
+              statusChat: isClosed ? "selesai" : p.statusChat,
+              assigned_admin_id: data.assignedAdminId ?? p.assigned_admin_id,
+              sudahDimulai:
+                data.assignedAdminId !== undefined && data.assignedAdminId !== null
+                  ? Number(data.assignedAdminId) === Number(adminId)
+                  : p.sudahDimulai,
+            };
+          }
+          return p;
+        }),
+      );
+    };
+
+    socket.on("message:new", handleMessageNew);
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      socket.off("message:new", handleMessageNew);
+      socket.off("conversation:updated", handleConversationUpdated);
+      listenersAttachedRef.current = false;
+    };
+  }, [socket, status, adminId]);
 
   const loadMessageHistory = async (convId: number) => {
     setKontakAktifId(convId);
+
     try {
       const res = await fetch(
         `/api/live-chat/messages?conversationId=${convId}`,
       );
       const data = await res.json();
-      if (res.ok) {
+
+      if (res.ok && Array.isArray(data)) {
         const formattedMessages = data.map((msg: any) => ({
           id: msg.id,
-          penulis: msg.sender_type === "customer" ? "pelanggan" : "admin",
+          penulis:
+            msg.sender_type === "customer"
+              ? ("pelanggan" as const)
+              : ("admin" as const),
           teks: msg.message,
           waktu: new Date(msg.created_at).toLocaleTimeString("id-ID", {
             hour: "2-digit",
@@ -230,11 +276,9 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
               : p,
           ),
         );
-      } else {
-        console.error("Gagal memuat riwayat:", data.error);
       }
     } catch (error) {
-      console.error("Gagal memuat riwayat:", error);
+      console.error("Error memuat riwayat:", error);
     }
   };
 
@@ -243,7 +287,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
       Swal.fire({
         icon: "error",
         title: "Koneksi Error",
-        text: "Socket belum terhubung. Silakan refresh halaman.",
+        text: "Socket belum terhubung.",
       });
       return;
     }
@@ -270,8 +314,8 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         } else {
           Swal.fire({
             icon: "error",
-            title: "Gagal Mengambil Chat",
-            text: response.error || "Chat ini sudah diambil oleh admin lain.",
+            title: "Gagal",
+            text: response.error || "Chat sudah diambil admin lain.",
           });
         }
       },
@@ -367,7 +411,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   const kontakAntrianList = kontakTersaring.filter(
     (item) => !item.sudahDimulai,
   );
-
   const kontakAktif =
     daftarPesan.find((item) => item.id === kontakAktifId) || null;
 
@@ -386,13 +429,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         <div className="w-full md:w-5/12 lg:w-4/12 border-r border-gray-200 flex flex-col bg-white h-full overflow-hidden">
           <div className="grid grid-cols-2 bg-gray-100 p-1.5 border-b border-gray-200 gap-1 shrink-0">
             <button
-              onClick={() => {
-                setTabAktif("antrian");
-                const first = daftarPesan.find(
-                  (i) => i.statusChat === "antrian",
-                );
-                if (first) setKontakAktifId(first.id);
-              }}
+              onClick={() => setTabAktif("antrian")}
               className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${
                 tabAktif === "antrian"
                   ? "bg-white text-gray-950 shadow-xs border border-gray-200"
@@ -406,13 +443,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
               </span>
             </button>
             <button
-              onClick={() => {
-                setTabAktif("riwayat");
-                const first = daftarPesan.find(
-                  (i) => i.statusChat === "selesai",
-                );
-                if (first) setKontakAktifId(first.id);
-              }}
+              onClick={() => setTabAktif("riwayat")}
               className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${
                 tabAktif === "riwayat"
                   ? "bg-white text-gray-950 shadow-xs border border-gray-200"
@@ -464,7 +495,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                            isAktif
+                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
                           <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                             {kontak.avatar}
@@ -515,7 +550,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                            isAktif
+                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
                           <div className="relative">
                             <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
@@ -565,7 +604,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                       <div
                         key={kontak.id}
                         onClick={() => loadMessageHistory(kontak.id)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]" : "hover:bg-gray-50"}`}
+                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                          isAktif
+                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                            : "hover:bg-gray-50"
+                        }`}
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                           {kontak.avatar}
@@ -647,7 +690,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                     Belum ada pesan dalam percakapan ini.
                   </div>
                 ) : (
-                  kontakAktif.riwayatChat.map((chat, index) => {
+                  kontakAktif.riwayatChat.map((chat) => {
                     const dariAdmin = chat.penulis === "admin";
                     return (
                       <div

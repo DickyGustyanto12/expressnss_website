@@ -15,17 +15,19 @@ app.prepare().then(async () => {
       const parsedUrl = parse(req.url, true);
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error("Gagal memproses request:", req.url, err);
+      console.error("Error processing request:", err);
       res.statusCode = 500;
       res.end("Internal Server Error");
     }
   });
 
+  console.log("🔌 Initializing Socket.IO server...");
   const { initLiveChatSocket } =
-    await import("./lib/realtime/live-chat-server.mjs");
-  initLiveChatSocket(httpServer);
+    await import("./lib/realtime/live-chat-server.ts");
+  const io = initLiveChatSocket(httpServer);
+  console.log("✅ Socket.IO server initialized successfully");
 
   httpServer.listen(port, () => {
-    console.log(`> Server menyala di http://${hostname}:${port}`);
+    console.log(`> Server ready on http://${hostname}:${port}`);
   });
 });

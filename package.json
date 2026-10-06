@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node server.mjs",
+    "dev": "tsx server.mjs",
     "build": "next build",
-    "start": "node server.mjs",
+    "start": "tsx server.mjs",
     "lint": "next lint",
     "db:migrate": "node scripts/migrate.js"
   },
@@ -38,6 +38,7 @@
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
