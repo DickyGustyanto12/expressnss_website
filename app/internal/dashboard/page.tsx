@@ -9,26 +9,37 @@ import {
   Truck,
   Image as ImageIcon,
   ChevronRight,
+  BookOpen,
+  Loader2,
+  MapPin,
+  ExternalLink,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
 import PesanMasuk from "./components/PesanMasuk";
 import TarifOngkir from "./components/TarifOngkir";
-import BannerCarousel from "./components/BannerCarousel";
+// import BannerCarousel from "./components/BannerCarousel";
+import AiKnowledge from "./components/AiKnowledge";
+import UpdateCabang from "./components/UpdateCabang";
+import HeroBannerManager from "./components/HeroBannerManager";
 
 export default function Dashboard() {
   const router = useRouter();
   const [menuAktif, setMenuAktif] = useState("ringkasan");
   const tahunSekarang = new Date().getFullYear();
 
-  // State untuk menyimpan data user yang login
   const [userData, setUserData] = useState({
     id: 1,
     nama: "Administrator",
     email: "admin@nssexpress.com",
   });
 
-  // Ambil data user dari localStorage saat komponen dimuat
+  const [tarifData, setTarifData] = useState<any[]>([]);
+  const [bannerData, setBannerData] = useState<any[]>([]);
+  const [knowledgeData, setKnowledgeData] = useState<any[]>([]);
+  const [cabangData, setCabangData] = useState<any[]>([]);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -45,7 +56,49 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Fungsi helper untuk mendapatkan inisial nama
+  useEffect(() => {
+    const fetchSummaryData = async () => {
+      setIsLoadingSummary(true);
+      try {
+        const [tarifRes, bannerRes, knowledgeRes, cabangRes] =
+          await Promise.all([
+            fetch("/api/tarif-ongkir"),
+            fetch("/api/banners"),
+            fetch("/api/ai-knowledge"),
+            fetch("/api/cabang"),
+          ]);
+
+        if (tarifRes.ok) {
+          const data = await tarifRes.json();
+          setTarifData(data.slice(0, 10));
+        }
+
+        if (bannerRes.ok) {
+          const data = await bannerRes.json();
+          setBannerData(data.slice(0, 10));
+        }
+
+        if (knowledgeRes.ok) {
+          const data = await knowledgeRes.json();
+          setKnowledgeData(data.slice(0, 5));
+        }
+
+        if (cabangRes.ok) {
+          const data = await cabangRes.json();
+          setCabangData(data.slice(0, 10));
+        }
+      } catch (error) {
+        console.error("Gagal memuat data ringkasan:", error);
+      } finally {
+        setIsLoadingSummary(false);
+      }
+    };
+
+    if (menuAktif === "ringkasan") {
+      fetchSummaryData();
+    }
+  }, [menuAktif]);
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -111,7 +164,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Profil User Dinamis */}
             <div className="mb-6 px-3.5 py-3 bg-white/80 border border-yellow-300 rounded-sm flex items-center gap-3 shadow-xs">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gray-950 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs">
@@ -144,7 +196,6 @@ export default function Dashboard() {
                 </div>
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
-
               <button
                 onClick={() => setMenuAktif("pesan")}
                 className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
@@ -165,7 +216,6 @@ export default function Dashboard() {
                   <ChevronRight size={18} className="text-gray-950" />
                 </div>
               </button>
-
               <button
                 onClick={() => setMenuAktif("ongkir")}
                 className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
@@ -181,7 +231,7 @@ export default function Dashboard() {
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
 
-              <button
+              {/*<button
                 onClick={() => setMenuAktif("carousel")}
                 className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
                   menuAktif === "carousel"
@@ -192,6 +242,49 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3.5">
                   <ImageIcon size={20} className="text-gray-950" />
                   <span>Banner Carousel</span>
+                </div>
+                <ChevronRight size={18} className="text-gray-950" />
+              </button>*/}
+
+              <button
+                onClick={() => setMenuAktif("knowledge")}
+                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
+                  menuAktif === "knowledge"
+                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
+                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <BookOpen size={20} className="text-gray-950" />
+                  <span>Knowledge AI</span>
+                </div>
+                <ChevronRight size={18} className="text-gray-950" />
+              </button>
+              <button
+                onClick={() => setMenuAktif("cabang")}
+                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
+                  menuAktif === "cabang"
+                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
+                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <MapPin size={20} className="text-gray-950" />
+                  <span>Update Cabang</span>
+                </div>
+                <ChevronRight size={18} className="text-gray-950" />
+              </button>
+              <button
+                onClick={() => setMenuAktif("hero-banner")}
+                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
+                  menuAktif === "hero-banner"
+                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
+                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <ImageIcon size={20} className="text-gray-950" />
+                  <span>Hero Banner</span>
                 </div>
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
@@ -229,8 +322,6 @@ export default function Dashboard() {
                 </button>
               </header>
 
-              {/* ... (Bagian grid ringkasan dan tabel ongkir tetap sama seperti kode Anda) ... */}
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div
                   onClick={() => setMenuAktif("pesan")}
@@ -260,7 +351,7 @@ export default function Dashboard() {
                       Tarif Ongkir Terupdate
                     </div>
                     <div className="text-3xl font-extrabold text-gray-900">
-                      24 Kota
+                      {tarifData.length} Data
                     </div>
                   </div>
                 </div>
@@ -276,20 +367,243 @@ export default function Dashboard() {
                       Carousel Aktif
                     </div>
                     <div className="text-3xl font-extrabold text-gray-900">
-                      4 Banner
+                      {bannerData.filter((b) => b.status === "aktif").length}{" "}
+                      Banner
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* 1. Card Preview Cabang (dengan Kolom Link Maps) */}
+                <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-red-500 overflow-hidden w-full">
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
+                      <MapPin size={18} className="text-red-600" />
+                      Preview Data Cabang
+                    </h3>
+                    <button
+                      onClick={() => setMenuAktif("cabang")}
+                      className="text-xs text-red-600 hover:underline font-semibold flex items-center gap-1"
+                    >
+                      Lihat Semua <ChevronRight size={14} />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto max-h-96">
+                    <table className="w-full text-sm text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 bg-gray-50 z-10 text-gray-600 font-semibold border-b border-gray-200 shadow-sm">
+                        <tr>
+                          <th className="px-5 py-3">Kota</th>
+                          <th className="px-5 py-3">Alamat Lengkap</th>
+                          <th className="px-5 py-3 text-center">Koordinat</th>
+                          <th className="px-5 py-3 text-center">Link Maps</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {cabangData.length > 0 ? (
+                          cabangData.map((item, idx) => {
+                            const linkUrl =
+                              item.link_maps ||
+                              `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`;
+                            return (
+                              <tr
+                                key={item.id || idx}
+                                className="hover:bg-gray-50 transition-colors"
+                              >
+                                <td className="px-5 py-3 font-bold text-gray-900">
+                                  {item.kota}
+                                </td>
+                                <td className="px-5 py-3 text-gray-700 max-w-md truncate">
+                                  {item.alamat}
+                                </td>
+                                <td className="px-5 py-3 text-center text-xs text-gray-500 font-mono">
+                                  {item.lat}, {item.lng}
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  {item.link_maps ? (
+                                    <a
+                                      href={item.link_maps}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors"
+                                      title={item.link_maps}
+                                    >
+                                      <ExternalLink size={10} />
+                                      Buka Maps
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={linkUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors"
+                                      title={`Buka via koordinat: ${item.lat}, ${item.lng}`}
+                                    >
+                                      <ExternalLink size={10} />
+                                      Via Koordinat
+                                    </a>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="px-5 py-8 text-center text-gray-500 text-sm"
+                            >
+                              Belum ada data cabang.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2. Card Preview Tarif Ongkir */}
+                <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-blue-500 overflow-hidden w-full">
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
+                      <Truck size={18} className="text-blue-600" />
+                      Preview Tarif Ongkir
+                    </h3>
+                    <button
+                      onClick={() => setMenuAktif("ongkir")}
+                      className="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1"
+                    >
+                      Lihat Semua <ChevronRight size={14} />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto max-h-96">
+                    <table className="w-full text-sm text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 bg-gray-50 z-10 text-gray-600 font-semibold border-b border-gray-200 shadow-sm">
+                        <tr>
+                          <th className="px-5 py-3">Asal</th>
+                          <th className="px-5 py-3">Tujuan</th>
+                          <th className="px-5 py-3">Layanan</th>
+                          <th className="px-5 py-3 text-right">Harga</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {tarifData.length > 0 ? (
+                          tarifData.map((item, idx) => (
+                            <tr
+                              key={item.id || idx}
+                              className="hover:bg-gray-50 transition-colors"
+                            >
+                              <td className="px-5 py-3 font-medium text-gray-900">
+                                {item.kota_asal}
+                              </td>
+                              <td className="px-5 py-3 text-gray-700">
+                                {item.kota_tujuan}
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                                  {item.layanan}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-900">
+                                Rp {item.harga?.toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="px-5 py-8 text-center text-gray-500 text-sm"
+                            >
+                              Belum ada data tarif ongkir.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 3. Card Preview Banner Carousel */}
+                <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-green-500 overflow-hidden w-full">
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
+                      <ImageIcon size={18} className="text-green-600" />
+                      Preview Banner Carousel
+                    </h3>
+                    <button
+                      onClick={() => setMenuAktif("carousel")}
+                      className="text-xs text-green-600 hover:underline font-semibold flex items-center gap-1"
+                    >
+                      Lihat Semua <ChevronRight size={14} />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto max-h-96">
+                    <table className="w-full text-sm text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 bg-gray-50 z-10 text-gray-600 font-semibold border-b border-gray-200 shadow-sm">
+                        <tr>
+                          <th className="px-5 py-3">Judul Banner</th>
+                          <th className="px-5 py-3 text-center">Urutan</th>
+                          <th className="px-5 py-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {bannerData.length > 0 ? (
+                          bannerData.map((item, idx) => (
+                            <tr
+                              key={item.id || idx}
+                              className="hover:bg-gray-50 transition-colors"
+                            >
+                              <td className="px-5 py-3 font-medium text-gray-900 truncate max-w-md">
+                                {item.judul}
+                              </td>
+                              <td className="px-5 py-3 text-center text-gray-700">
+                                #{item.urutan}
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                    item.status === "aktif"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={3}
+                              className="px-5 py-8 text-center text-gray-500 text-sm"
+                            >
+                              Belum ada data banner carousel.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* PERBAIKAN UTAMA: Mengirimkan props adminId dan adminName ke PesanMasuk */}
           {menuAktif === "pesan" && (
             <PesanMasuk adminId={userData.id} adminName={userData.nama} />
           )}
           {menuAktif === "ongkir" && <TarifOngkir />}
-          {menuAktif === "carousel" && <BannerCarousel />}
+          {/* {menuAktif === "carousel" && <BannerCarousel />} */}
+          {menuAktif === "knowledge" && (
+            <AiKnowledge adminId={userData.id} adminName={userData.nama} />
+          )}
+          {menuAktif === "cabang" && <UpdateCabang />}
+          {menuAktif === "hero-banner" && <HeroBannerManager />}
         </main>
       </div>
 

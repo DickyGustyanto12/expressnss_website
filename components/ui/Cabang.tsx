@@ -1,6 +1,8 @@
-import { useState } from "react";
+"use client";
+
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, ExternalLink } from "lucide-react";
+import { Search, MapPin, ExternalLink, Loader2 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -26,7 +28,7 @@ interface TipeCabang {
   lat: number;
   lng: number;
   alamat: string;
-  linkMaps?: string;
+  link_maps?: string;
 }
 
 const PengaturTampilanPeta = ({ lat, lng }: { lat: number; lng: number }) => {
@@ -38,35 +40,33 @@ const PengaturTampilanPeta = ({ lat, lng }: { lat: number; lng: number }) => {
 const Cabang = () => {
   const [cabangTerpilih, setCabangTerpilih] = useState<TipeCabang | null>(null);
   const [kataKunci, setKataKunci] = useState("");
+  const [daftarCabang, setDaftarCabang] = useState<TipeCabang[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const titikTengahPeta: [number, number] = [-2.5489, 118.0149];
 
-  const daftarCabang: TipeCabang[] = [
-    {
-      id: 1,
-      kota: "Jakarta",
-      lat: -6.1892425,
-      lng: 106.8011406,
-      alamat: "Jl. Brigdjen Katamso No.5, Slipi, Jakarta Barat",
-      linkMaps: "https://maps.app.goo.gl/P9GCzTuXhcoqXU2v7",
-    },
-    {
-      id: 2,
-      kota: "Semarang",
-      lat: -6.9932,
-      lng: 110.4203,
-      alamat:
-        "Jl. Kaligawe Raya, Terboyo Kulon, Kec. Genuk, Kota Semarang, Jawa Tengah 50112",
-      linkMaps: "https://maps.app.goo.gl/mAhZznDVrrPCyBTcA",
-    },
-    {
-      id: 3,
-      kota: "Surabaya",
-      lat: -7.3728327,
-      lng: 112.7662824,
-      alamat: "Pergudangan 88 Blok B27 Jl. Raya Pabean",
-    },
-  ];
+  useEffect(() => {
+    const fetchCabang = async () => {
+      try {
+        const res = await fetch("/api/cabang");
+        if (res.ok) {
+          const data = await res.json();
+          setDaftarCabang(data);
+        }
+      } catch (error) {
+        console.error("Gagal memuat data cabang:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Gagal Memuat Data",
+          text: "Terjadi kesalahan saat mengambil data cabang.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCabang();
+  }, []);
 
   const tanganiPencarian = () => {
     if (!kataKunci.trim()) return;
@@ -147,7 +147,14 @@ const Cabang = () => {
               </button>
             </form>
 
-            {cabangTerpilih && (
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8 bg-white rounded-xl border border-gray-200">
+                <Loader2 className="animate-spin text-gray-400" size={32} />
+                <span className="ml-3 text-gray-500">
+                  Memuat data cabang...
+                </span>
+              </div>
+            ) : cabangTerpilih ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -169,7 +176,7 @@ const Cabang = () => {
 
                 <a
                   href={
-                    cabangTerpilih.linkMaps ||
+                    cabangTerpilih.link_maps ||
                     `https://www.google.com/maps/search/?api=1&query=${cabangTerpilih.lat},${cabangTerpilih.lng}`
                   }
                   target="_blank"
@@ -180,6 +187,11 @@ const Cabang = () => {
                   Buka Rute di Google Maps
                 </a>
               </motion.div>
+            ) : (
+              <div className="p-6 bg-white rounded-xl border border-gray-200 text-center text-gray-500 text-sm">
+                Klik salah satu penanda di peta atau gunakan fitur pencarian di
+                atas.
+              </div>
             )}
           </motion.div>
 
@@ -190,41 +202,49 @@ const Cabang = () => {
             transition={{ duration: 0.6 }}
             className="w-full lg:w-6/12 h-[380px] lg:h-[480px] rounded-2xl overflow-hidden shadow-xl border-4 border-gray-100 relative z-0"
           >
-            <MapContainer
-              center={titikTengahPeta}
-              zoom={5}
-              scrollWheelZoom={true}
-              style={{ height: "100%", width: "100%" }}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-
-              {cabangTerpilih && (
-                <PengaturTampilanPeta
-                  lat={cabangTerpilih.lat}
-                  lng={cabangTerpilih.lng}
+            {isLoading ? (
+              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                <Loader2 className="animate-spin text-gray-400" size={40} />
+              </div>
+            ) : (
+              <MapContainer
+                center={titikTengahPeta}
+                zoom={5}
+                scrollWheelZoom={true}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-              )}
 
-              {daftarCabang.map((cabang) => (
-                <Marker
-                  key={cabang.id}
-                  position={[cabang.lat, cabang.lng]}
-                  eventHandlers={{
-                    click: () => setCabangTerpilih(cabang),
-                  }}
-                >
-                  <Popup>
-                    <div className="font-bold text-gray-900">{cabang.kota}</div>
-                    <div className="text-gray-600 text-xs mt-1">
-                      Klik penanda untuk melihat detail
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-            </MapContainer>
+                {cabangTerpilih && (
+                  <PengaturTampilanPeta
+                    lat={cabangTerpilih.lat}
+                    lng={cabangTerpilih.lng}
+                  />
+                )}
+
+                {daftarCabang.map((cabang) => (
+                  <Marker
+                    key={cabang.id}
+                    position={[cabang.lat, cabang.lng]}
+                    eventHandlers={{
+                      click: () => setCabangTerpilih(cabang),
+                    }}
+                  >
+                    <Popup>
+                      <div className="font-bold text-gray-900">
+                        {cabang.kota}
+                      </div>
+                      <div className="text-gray-600 text-xs mt-1">
+                        Klik penanda untuk melihat detail
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            )}
           </motion.div>
         </div>
       </div>

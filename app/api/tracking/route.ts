@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// Mengabaikan validasi sertifikat SSL lokal (self-signed) untuk server internal
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 export async function POST(request: Request) {
@@ -15,7 +14,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Mengirim permintaan POST ke server internal NSS Express
     const apiResponse = await fetch("https://172.16.1.57/ksapisvr", {
       method: "POST",
       headers: {

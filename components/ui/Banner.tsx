@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-interface BannerItem {
+interface HeroBannerItem {
   id: number;
   judul: string;
   deskripsi: string;
   gambar_url: string;
-  status: string;
+  badge_text: string;
+  button_text: string;
+  button_link: string;
+  is_active: number;
   urutan: number;
 }
 
@@ -16,26 +19,50 @@ interface BannerProps {
 }
 
 const Banner = ({ onBukaChat }: BannerProps) => {
-  const [slides, setSlides] = useState<BannerItem[]>([]);
+  const [slides, setSlides] = useState<HeroBannerItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+  const preloadRef = useRef<HTMLImageElement[]>([]);
 
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        const res = await fetch("/api/banners");
+        const res = await fetch("/api/hero-banner");
         const data = await res.json();
         if (res.ok) {
           const activeBanners = data
-            .filter((b: BannerItem) => b.status === "aktif")
-            .sort((a: BannerItem, b: BannerItem) => a.urutan - b.urutan);
+            .filter((b: HeroBannerItem) => b.is_active === 1)
+            .sort(
+              (a: HeroBannerItem, b: HeroBannerItem) => a.urutan - b.urutan,
+            );
           setSlides(activeBanners);
+          setIsLoading(false);
         }
       } catch (error) {
-        console.error("Gagal memuat banner:", error);
+        console.error("Gagal memuat hero banner:", error);
+        setIsLoading(false);
       }
     };
     fetchBanners();
   }, []);
+
+  useEffect(() => {
+    if (slides.length === 0) return;
+
+    slides.forEach((slide, index) => {
+      const img = new Image();
+      img.src = slide.gambar_url;
+      img.onload = () => {
+        setLoadedImages((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(index);
+          return newSet;
+        });
+      };
+      preloadRef.current[index] = img;
+    });
+  }, [slides]);
 
   const nextSlide = () => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % slides.length);
@@ -53,7 +80,20 @@ const Banner = ({ onBukaChat }: BannerProps) => {
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [currentIndex]);
+  }, [currentIndex, slides.length]);
+
+  if (isLoading || slides.length === 0) {
+    return (
+      <div className="relative w-full h-[520px] sm:h-[600px] md:h-[800px] lg:h-[750px] bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-sm font-semibold">Memuat banner...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentSlide = slides[currentIndex];
 
   return (
     <div className="relative w-full h-[520px] sm:h-[600px] md:h-[800px] lg:h-[750px] overflow-hidden group">
@@ -81,7 +121,9 @@ const Banner = ({ onBukaChat }: BannerProps) => {
         <img
           key={slide.id}
           src={slide.gambar_url}
-          alt={`Banner NSS Express ${index + 1}`}
+          alt={`Hero Banner ${index + 1}`}
+          loading={index === 0 ? "eager" : "lazy"}
+          fetchPriority={index === 0 ? "high" : "auto"}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
             index === currentIndex ? "opacity-100 z-0" : "opacity-0 -z-10"
           }`}
@@ -154,44 +196,52 @@ const Banner = ({ onBukaChat }: BannerProps) => {
           key={currentIndex}
           className="max-w-3xl animate-slide-right pointer-events-auto"
         >
-          <span className="inline-block py-1 px-2.5 md:py-2 md:px-3 rounded-sm bg-yellow-400 border border-blue-500/30 text-black text-[10px] sm:text-xs md:text-sm font-semibold tracking-wider mb-3 md:mb-6 backdrop-blur-sm">
-            #1 MITRA LOGISTIK ANDA
-          </span>
+          {currentSlide.badge_text && (
+            <span className="inline-block py-1 px-2.5 md:py-2 md:px-3 rounded-sm bg-yellow-400 border border-blue-500/30 text-black text-[10px] sm:text-xs md:text-sm font-semibold tracking-wider mb-3 md:mb-6 backdrop-blur-sm">
+              {currentSlide.badge_text}
+            </span>
+          )}
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight text-white mb-3 md:mb-6 leading-tight">
-            NSS EXPRESS
+            {currentSlide.judul}
           </h1>
 
-          <p className="text-sm sm:text-base md:text-xl lg:text-2xl text-white lg:font-extralight  leading-relaxed mb-6 md:mb-10 font-light max-w-2xl">
-            Solusi logistik dan distribusi terpercaya untuk menjangkau seluruh
-            Nusantara.{" "}
-            <strong className="text-white font-semibold">
-              Cepat, aman, dan tepat waktu
-            </strong>{" "}
-            ke tangan pelanggan Anda.
+          <p className="text-sm sm:text-base md:text-xl lg:text-2xl text-white lg:font-extralight leading-relaxed mb-6 md:mb-10 font-light max-w-2xl">
+            {currentSlide.deskripsi}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-5">
-            <button
-              onClick={onBukaChat}
-              className="cursor-pointer group rounded-sm flex items-center justify-center gap-2 bg-white text-slate-900 font-extrabold px-5 w-fit py-2.5 text-sm md:px-8 md:py-4 md:text-lg transition-all duration-300 hover:bg-yellow-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(250,204,21,0.4)]"
-            >
-              <svg
-                className="w-4 h-4 md:w-5 md:h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          {currentSlide.button_text && (
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-5">
+              <a
+                href={currentSlide.button_link || "#"}
+                onClick={(e) => {
+                  if (
+                    currentSlide.button_link === "#kontak" ||
+                    currentSlide.button_link === "#"
+                  ) {
+                    e.preventDefault();
+                    onBukaChat?.();
+                  }
+                }}
+                className="cursor-pointer group rounded-sm flex items-center justify-center gap-2 bg-white text-slate-900 font-extrabold px-5 w-fit py-2.5 text-sm md:px-8 md:py-4 md:text-lg transition-all duration-300 hover:bg-yellow-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(250,204,21,0.4)]"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                ></path>
-              </svg>
-              <span>Hubungi Kami</span>
-            </button>
-          </div>
+                <svg
+                  className="w-4 h-4 md:w-5 md:h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                  ></path>
+                </svg>
+                <span>{currentSlide.button_text}</span>
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>
