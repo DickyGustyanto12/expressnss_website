@@ -284,7 +284,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-3.5">
                   <ImageIcon size={20} className="text-gray-950" />
-                  <span>Hero Banner</span>
+                  <span>Banner Carousel</span>
                 </div>
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
