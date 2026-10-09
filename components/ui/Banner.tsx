@@ -130,7 +130,11 @@ const Banner = ({ onBukaChat }: BannerProps) => {
         />
       ))}
 
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/70 to-transparent z-10"></div>
+      {/* PERBAIKAN: Overlay lebih terang - gambar terlihat jelas */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/25 to-transparent z-10"></div>
+
+      {/* Gradient bawah untuk transisi halus */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
 
       <button
         onClick={prevSlide}
@@ -197,16 +201,16 @@ const Banner = ({ onBukaChat }: BannerProps) => {
           className="max-w-3xl animate-slide-right pointer-events-auto"
         >
           {currentSlide.badge_text && (
-            <span className="inline-block py-1 px-2.5 md:py-2 md:px-3 rounded-sm bg-yellow-400 border border-blue-500/30 text-black text-[10px] sm:text-xs md:text-sm font-semibold tracking-wider mb-3 md:mb-6 backdrop-blur-sm">
+            <span className="inline-block py-1 px-2.5 md:py-2 md:px-3 rounded-sm bg-yellow-400 border border-blue-500/30 text-black text-[10px] sm:text-xs md:text-sm font-semibold tracking-wider mb-3 md:mb-6 backdrop-blur-sm shadow-lg">
               {currentSlide.badge_text}
             </span>
           )}
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight text-white mb-3 md:mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight text-white mb-3 md:mb-6 leading-tight drop-shadow-2xl]">
             {currentSlide.judul}
           </h1>
 
-          <p className="text-sm sm:text-base md:text-xl lg:text-2xl text-white lg:font-extralight leading-relaxed mb-6 md:mb-10 font-light max-w-2xl">
+          <p className="text-sm sm:text-base md:text-xl lg:text-2xl text-white lg:font-extralight leading-relaxed mb-6 md:mb-10 font-light max-w-2xl drop-shadow-2xl ]">
             {currentSlide.deskripsi}
           </p>
 
@@ -223,7 +227,7 @@ const Banner = ({ onBukaChat }: BannerProps) => {
                     onBukaChat?.();
                   }
                 }}
-                className="cursor-pointer group rounded-sm flex items-center justify-center gap-2 bg-white text-slate-900 font-extrabold px-5 w-fit py-2.5 text-sm md:px-8 md:py-4 md:text-lg transition-all duration-300 hover:bg-yellow-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(250,204,21,0.4)]"
+                className="cursor-pointer group rounded-sm flex items-center justify-center gap-2 bg-white text-slate-900 font-extrabold px-5 w-fit py-2.5 text-sm md:px-8 md:py-4 md:text-lg transition-all duration-300 hover:bg-yellow-300 hover:scale-105 hover:shadow-[0_0_25px_rgba(250,204,21,0.5)] shadow-xl"
               >
                 <svg
                   className="w-4 h-4 md:w-5 md:h-5"
