@@ -117,7 +117,7 @@ const CekOngkir = () => {
           </div>
 
           <div>
-            <label className="block text-white text-xs font-bold mb-2">
+            <label className="block text-white text-xs font-bold   mb-2">
               Kota Asal Pengiriman
             </label>
             <div className="flex w-full shadow-sm">

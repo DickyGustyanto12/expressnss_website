@@ -22,6 +22,8 @@ import TarifOngkir from "./components/TarifOngkir";
 import AiKnowledge from "./components/AiKnowledge";
 import UpdateCabang from "./components/UpdateCabang";
 import HeroBannerManager from "./components/HeroBannerManager";
+import InfoExpressManager from "./components/InfoExpressManager";
+import { Newspaper } from "lucide-react";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -285,6 +287,21 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3.5">
                   <ImageIcon size={20} className="text-gray-950" />
                   <span>Banner Carousel</span>
+                </div>
+                <ChevronRight size={18} className="text-gray-950" />
+              </button>
+
+              <button
+                onClick={() => setMenuAktif("info-express")}
+                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
+                  menuAktif === "info-express"
+                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
+                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <Newspaper size={20} className="text-gray-950" />
+                  <span>Info Express</span>
                 </div>
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
@@ -604,6 +621,7 @@ export default function Dashboard() {
           )}
           {menuAktif === "cabang" && <UpdateCabang />}
           {menuAktif === "hero-banner" && <HeroBannerManager />}
+          {menuAktif === "info-express" && <InfoExpressManager />}
         </main>
       </div>
 

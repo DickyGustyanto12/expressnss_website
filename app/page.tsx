@@ -11,6 +11,7 @@ import Footer from "@/components/ui/Footer";
 import ChatWidget from "@/components/ui/ChatWidget";
 import Tracking from "@/components/ui/Tracking";
 import CekOngkir from "@/components/ui/CekOngkir";
+import InfoExpress from "@/components/ui/InfoExpress";
 
 const Cabang = dynamic(() => import("@/components/ui/Cabang"), {
   ssr: false,
@@ -42,6 +43,10 @@ export default function HalamanUtama() {
 
       <div className="">
         <Services />
+      </div>
+
+      <div>
+        <InfoExpress />
       </div>
 
       <div className="bg-gray-950">
