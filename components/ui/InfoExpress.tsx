@@ -147,7 +147,6 @@ const InfoExpress = () => {
           </div>
         ) : (
           <div className="relative">
-            {/* Tombol Navigasi - Di Luar Area Konten */}
             {infoCards.length > 1 && (
               <div className="flex items-center justify-between gap-4">
                 <button
@@ -158,11 +157,9 @@ const InfoExpress = () => {
                   <ChevronLeft size={24} />
                 </button>
 
-                {/* Carousel Container - TANPA ANIMASI */}
                 <div className="flex-1 overflow-hidden max-w-6xl mx-auto">
                   <div className="flex flex-col lg:flex-row gap-8 items-center">
-                    {/* Gambar - Di Sebelah KIRI (Desktop) */}
-                    <div className="w-full lg:w-1/2">
+                    <div className="w-full lg:w-100">
                       <div className="relative overflow-hidden rounded-2xl shadow-xl bg-gray-100">
                         <img
                           src={getImageUrl(infoCards[currentIndex].gambar_url)}
@@ -179,7 +176,6 @@ const InfoExpress = () => {
                           }}
                           className="w-full h-auto object-contain cursor-pointer hover:scale-105 transition-transform duration-300"
                         />
-                        {/* Icon Zoom */}
                         <div className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-md opacity-0 hover:opacity-100 transition-opacity">
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -201,7 +197,6 @@ const InfoExpress = () => {
                       </div>
                     </div>
 
-                    {/* Konten - Di Sebelah KANAN (Desktop) */}
                     <div className="w-full lg:w-1/2 space-y-6 text-center lg:text-left">
                       <div className="flex items-center justify-center lg:justify-start gap-2 text-sm text-gray-500">
                         <Calendar size={16} />
@@ -218,7 +213,6 @@ const InfoExpress = () => {
                         {infoCards[currentIndex].deskripsi}
                       </p>
 
-                      {/* Badge Kategori */}
                       <div className="flex justify-center lg:justify-start pt-4">
                         <span
                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
@@ -244,7 +238,6 @@ const InfoExpress = () => {
               </div>
             )}
 
-            {/* Jika hanya 1 card, tampilkan tanpa tombol navigasi */}
             {infoCards.length === 1 && (
               <div className="max-w-6xl mx-auto">
                 <div className="flex flex-col lg:flex-row gap-8 items-center">
@@ -314,7 +307,6 @@ const InfoExpress = () => {
               </div>
             )}
 
-            {/* Indikator Dots - Hanya jika lebih dari 1 card */}
             {infoCards.length > 1 && (
               <div className="flex justify-center gap-2 mt-8">
                 {infoCards.map((_, index) => (
@@ -335,7 +327,6 @@ const InfoExpress = () => {
         )}
       </div>
 
-      {/* Fullscreen Modal - Tetap ada animasi */}
       <AnimatePresence>
         {isFullscreen && (
           <motion.div

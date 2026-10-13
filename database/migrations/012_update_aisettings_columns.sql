@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS `ai_settings` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `ai_name` VARCHAR(100) NOT NULL DEFAULT 'Customer Service NSS Express',
+  `custom_greeting` TEXT DEFAULT NULL,
+  `persona` TEXT DEFAULT NULL,
+  `limitations` TEXT DEFAULT NULL,
+  `quick_questions` TEXT DEFAULT NULL COMMENT 'Disimpan dalam format JSON array',
+  `instructions` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
