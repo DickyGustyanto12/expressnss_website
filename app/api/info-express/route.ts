@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
     const judul = formData.get("judul") as string;
     const deskripsi = formData.get("deskripsi") as string;
     const tanggal = formData.get("tanggal") as string;
-    const is_active = formData.get("is_active") === "true" ? 1 : 0;
+
+    // ✅ PERBAIKAN: Cek apakah nilainya "1", bukan "true"
+    const is_active = formData.get("is_active") === "1" ? 1 : 0;
     const gambarFile = formData.get("gambar") as File;
 
     if (!kategori || !judul || !deskripsi || !tanggal || !gambarFile) {
@@ -72,7 +74,9 @@ export async function PUT(req: NextRequest) {
     const judul = formData.get("judul") as string;
     const deskripsi = formData.get("deskripsi") as string;
     const tanggal = formData.get("tanggal") as string;
-    const is_active = formData.get("is_active") === "true" ? 1 : 0;
+
+    // ✅ PERBAIKAN: Cek apakah nilainya "1", bukan "true"
+    const is_active = formData.get("is_active") === "1" ? 1 : 0;
     const gambarFile = formData.get("gambar") as File;
     const gambar_lama = formData.get("gambar_lama") as string;
 
@@ -112,8 +116,6 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json();
     if (!id)
       return NextResponse.json({ error: "ID wajib diisi" }, { status: 400 });
-
-    // Opsional: Hapus file gambar dari server juga di sini
 
     await pool.query("DELETE FROM info_express WHERE id = ?", [id]);
     return NextResponse.json({ success: true });

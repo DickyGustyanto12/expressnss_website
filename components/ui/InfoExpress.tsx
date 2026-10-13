@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { ArrowRight, Calendar, Tag, Loader2, ImageOff } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Tag,
+  Loader2,
+  ImageOff,
+  X,
+} from "lucide-react";
 
 interface InfoCard {
   id: number;
@@ -17,6 +25,9 @@ interface InfoCard {
 const InfoExpress = () => {
   const [infoCards, setInfoCards] = useState<InfoCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,8 +51,10 @@ const InfoExpress = () => {
     fetchData();
   }, []);
 
-  const getImageUrl = (url: string) => {
-    if (!url) return "https://placehold.co/800x500/e2e8f0/475569?text=No+Image";
+  const getImageUrl = (url: string | null | undefined) => {
+    if (!url || url.trim() === "") {
+      return "https://placehold.co/800x500/e2e8f0/475569?text=No+Image";
+    }
     return url.startsWith("http") || url.startsWith("/") ? url : `/${url}`;
   };
 
@@ -55,11 +68,34 @@ const InfoExpress = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("id-ID", {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return "Tanggal tidak valid";
+    }
+    return date.toLocaleDateString("id-ID", {
       day: "numeric",
-      month: "short",
+      month: "long",
       year: "numeric",
     });
+  };
+
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev + 1) % infoCards.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev - 1 + infoCards.length) % infoCards.length);
+  };
+
+  const openFullscreen = (imageUrl: string) => {
+    setFullscreenImage(imageUrl);
+    setIsFullscreen(true);
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeFullscreen = () => {
+    setIsFullscreen(false);
+    document.body.style.overflow = "unset";
   };
 
   if (isLoading) {
@@ -110,66 +146,231 @@ const InfoExpress = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {infoCards.map((card, index) => (
-              <motion.a
-                key={card.id}
-                href="#"
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="group bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:-translate-y-2"
-              >
-                <div className="relative overflow-hidden aspect-[16/10] bg-gray-100">
-                  <img
-                    src={getImageUrl(card.gambar_url)}
-                    alt={card.judul}
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "https://placehold.co/800x500/e2e8f0/475569?text=Gambar+Tidak+Ditemukan";
-                    }}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="absolute top-3 left-3">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold backdrop-blur-sm ${
-                        kategoriColors[card.kategori] ||
-                        "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      <Tag size={10} />
-                      {card.kategori}
-                    </span>
+          <div className="relative">
+            {/* Tombol Navigasi - Di Luar Area Konten */}
+            {infoCards.length > 1 && (
+              <div className="flex items-center justify-between gap-4">
+                <button
+                  onClick={prevSlide}
+                  className="shrink-0 bg-white hover:bg-gray-50 text-gray-800 p-3 rounded-full shadow-lg border border-gray-200 transition-all hover:scale-110"
+                  aria-label="Previous"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+
+                {/* Carousel Container - TANPA ANIMASI */}
+                <div className="flex-1 overflow-hidden max-w-6xl mx-auto">
+                  <div className="flex flex-col lg:flex-row gap-8 items-center">
+                    {/* Gambar - Di Sebelah KIRI (Desktop) */}
+                    <div className="w-full lg:w-1/2">
+                      <div className="relative overflow-hidden rounded-2xl shadow-xl bg-gray-100">
+                        <img
+                          src={getImageUrl(infoCards[currentIndex].gambar_url)}
+                          alt={infoCards[currentIndex].judul}
+                          loading="lazy"
+                          onClick={() =>
+                            openFullscreen(
+                              getImageUrl(infoCards[currentIndex].gambar_url),
+                            )
+                          }
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://placehold.co/800x500/e2e8f0/475569?text=Gambar+Tidak+Ditemukan";
+                          }}
+                          className="w-full h-auto object-contain cursor-pointer hover:scale-105 transition-transform duration-300"
+                        />
+                        {/* Icon Zoom */}
+                        <div className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-md opacity-0 hover:opacity-100 transition-opacity">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            <line x1="11" y1="8" x2="11" y2="14"></line>
+                            <line x1="8" y1="11" x2="14" y2="11"></line>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Konten - Di Sebelah KANAN (Desktop) */}
+                    <div className="w-full lg:w-1/2 space-y-6 text-center lg:text-left">
+                      <div className="flex items-center justify-center lg:justify-start gap-2 text-sm text-gray-500">
+                        <Calendar size={16} />
+                        <span>
+                          {formatDate(infoCards[currentIndex].tanggal)}
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-gray-900 leading-tight">
+                        {infoCards[currentIndex].judul}
+                      </h3>
+
+                      <p className="text-gray-600 text-base md:text-lg leading-relaxed">
+                        {infoCards[currentIndex].deskripsi}
+                      </p>
+
+                      {/* Badge Kategori */}
+                      <div className="flex justify-center lg:justify-start pt-4">
+                        <span
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
+                            kategoriColors[infoCards[currentIndex].kategori] ||
+                            "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          <Tag size={14} />
+                          {infoCards[currentIndex].kategori}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-5 md:p-6">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                    <Calendar size={12} />
-                    <span>{formatDate(card.tanggal)}</span>
+                <button
+                  onClick={nextSlide}
+                  className="shrink-0 bg-white hover:bg-gray-50 text-gray-800 p-3 rounded-full shadow-lg border border-gray-200 transition-all hover:scale-110"
+                  aria-label="Next"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+            )}
+
+            {/* Jika hanya 1 card, tampilkan tanpa tombol navigasi */}
+            {infoCards.length === 1 && (
+              <div className="max-w-6xl mx-auto">
+                <div className="flex flex-col lg:flex-row gap-8 items-center">
+                  <div className="w-full lg:w-1/2">
+                    <div className="relative overflow-hidden rounded-2xl shadow-xl bg-gray-100">
+                      <img
+                        src={getImageUrl(infoCards[0].gambar_url)}
+                        alt={infoCards[0].judul}
+                        loading="lazy"
+                        onClick={() =>
+                          openFullscreen(getImageUrl(infoCards[0].gambar_url))
+                        }
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "https://placehold.co/800x500/e2e8f0/475569?text=Gambar+Tidak+Ditemukan";
+                        }}
+                        className="w-full h-auto object-contain cursor-pointer hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-md opacity-0 hover:opacity-100 transition-opacity">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                          <line x1="11" y1="8" x2="11" y2="14"></line>
+                          <line x1="8" y1="11" x2="14" y2="11"></line>
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="font-extrabold text-gray-900 text-base md:text-lg leading-snug mb-2 line-clamp-2 group-hover:text-[#FFCC00] transition-colors">
-                    {card.judul}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed line-clamp-3 mb-4">
-                    {card.deskripsi}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-sm font-bold text-[#FFCC00] group-hover:gap-2.5 transition-all">
-                    <span>Baca Selengkapnya</span>
-                    <ArrowRight
-                      size={16}
-                      className="transition-transform group-hover:translate-x-1"
-                    />
+
+                  <div className="w-full lg:w-1/2 space-y-6 text-center lg:text-left">
+                    <div className="flex items-center justify-center lg:justify-start gap-2 text-sm text-gray-500">
+                      <Calendar size={16} />
+                      <span>{formatDate(infoCards[0].tanggal)}</span>
+                    </div>
+
+                    <h3 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-gray-900 leading-tight">
+                      {infoCards[0].judul}
+                    </h3>
+
+                    <p className="text-gray-600 text-base md:text-lg leading-relaxed">
+                      {infoCards[0].deskripsi}
+                    </p>
+
+                    <div className="flex justify-center lg:justify-start pt-4">
+                      <span
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
+                          kategoriColors[infoCards[0].kategori] ||
+                          "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        <Tag size={14} />
+                        {infoCards[0].kategori}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </motion.a>
-            ))}
+              </div>
+            )}
+
+            {/* Indikator Dots - Hanya jika lebih dari 1 card */}
+            {infoCards.length > 1 && (
+              <div className="flex justify-center gap-2 mt-8">
+                {infoCards.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentIndex(index)}
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      index === currentIndex
+                        ? "bg-[#FFCC00] w-8"
+                        : "bg-gray-300 hover:bg-gray-400"
+                    }`}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Fullscreen Modal - Tetap ada animasi */}
+      <AnimatePresence>
+        {isFullscreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+            onClick={closeFullscreen}
+          >
+            <button
+              onClick={closeFullscreen}
+              className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-all z-50"
+              aria-label="Close"
+            >
+              <X size={28} />
+            </button>
+
+            <motion.img
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              src={fullscreenImage}
+              alt="Fullscreen"
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm">
+              Klik di mana saja untuk menutup
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 };
