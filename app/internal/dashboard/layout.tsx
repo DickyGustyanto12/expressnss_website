@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NotificationProvider } from "./components/NotificationContext";
 
 export default function DashboardLayout({
   children,
@@ -10,13 +11,19 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const [sudahLogin, setSudahLogin] = useState(false);
+  const [adminId, setAdminId] = useState<number>(1);
 
   useEffect(() => {
     const statusLogin = localStorage.getItem("isLoggedIn");
+    const storedAdminId = localStorage.getItem("adminId");
+
     if (!statusLogin) {
       router.push("/internal");
     } else {
       setSudahLogin(true);
+      if (storedAdminId) {
+        setAdminId(parseInt(storedAdminId));
+      }
     }
   }, [router]);
 
@@ -28,5 +35,7 @@ export default function DashboardLayout({
     );
   }
 
-  return <>{children}</>;
+  return (
+    <NotificationProvider adminId={adminId}>{children}</NotificationProvider>
+  );
 }

@@ -9,14 +9,13 @@ import {
   ArrowLeft,
   Phone,
   Loader2,
-  WifiOff,
-  Wifi,
   Lock,
   Bot,
   Users,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useLiveChatSocket } from "../../app/hooks/use-live-chat-socket";
-import { QUICK_QUESTIONS } from "@/components/ui/aiConfig";
 
 interface PesanChat {
   id: number;
@@ -31,17 +30,18 @@ interface ChatWidgetProps {
   setBukaChat?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-type ChatMode = "ai" | "form" | "live";
+type ChatMode = "form" | "ai" | "live";
 
 const ChatWidget = ({
   bukaChat: externalBukaChat,
   setBukaChat: externalSetBukaChat,
 }: ChatWidgetProps = {}) => {
   const [internalBukaChat, setInternalBukaChat] = useState(false);
-  const bukaChat = externalBukaChat !== undefined ? externalBukaChat : internalBukaChat;
+  const bukaChat =
+    externalBukaChat !== undefined ? externalBukaChat : internalBukaChat;
   const setBukaChat = externalSetBukaChat || setInternalBukaChat;
 
-  const [chatMode, setChatMode] = useState<ChatMode>("ai");
+  const [chatMode, setChatMode] = useState<ChatMode>("form");
   const [nama, setNama] = useState("");
   const [nomorHp, setNomorHp] = useState("");
   const [pesanInput, setPesanInput] = useState("");
@@ -53,24 +53,132 @@ const ChatWidget = ({
   const [isClosed, setIsClosed] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
   const [showHumanButton, setShowHumanButton] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isConnectingLive, setIsConnectingLive] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  const [aiSettings, setAiSettings] = useState({
+    ai_name: "Customer Service NSS Express",
+    custom_greeting:
+      "Halo Kak! Ada yang bisa saya bantu terkait layanan pengiriman NSS Express?",
+    quick_questions: [] as string[],
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ✅ PERBAIKAN: Panggil hook DULU, baru dapat 'status'
   const { socket, status } = useLiveChatSocket(
     chatMode === "live" ? token : null,
     chatMode === "live" ? conversationId : null,
-    false
+    false,
   );
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // ✅ PERBAIKAN: Deklarasi statusRef SETELAH 'status' ada
+  const statusRef = useRef(status);
   useEffect(() => {
-    scrollToBottom();
-  }, [daftarPesan, isAiThinking]);
+    statusRef.current = status;
+  }, [status]);
 
+  // ====== Load AI Settings ======
+  useEffect(() => {
+    const fetchAiSettings = async () => {
+      try {
+        const res = await fetch("/api/ai-settings");
+        if (res.ok) {
+          const data = await res.json();
+          let parsedQuestions: string[] = [];
+          try {
+            parsedQuestions = JSON.parse(data.quick_questions || "[]");
+          } catch {
+            parsedQuestions = [];
+          }
+          setAiSettings({
+            ai_name: data.ai_name || "Customer Service NSS Express",
+            custom_greeting:
+              data.custom_greeting || "Halo Kak! Ada yang bisa saya bantu?",
+            quick_questions: parsedQuestions,
+          });
+        }
+      } catch (error) {
+        console.error("Gagal memuat pengaturan AI:", error);
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+    fetchAiSettings();
+  }, []);
+
+  // ====== Sapaan awal saat masuk mode AI ======
+  useEffect(() => {
+    if (
+      bukaChat &&
+      chatMode === "ai" &&
+      daftarPesan.length === 0 &&
+      !isLoadingSettings
+    ) {
+      setDaftarPesan([
+        {
+          id: 1,
+          pengirim: "ai",
+          teks: `Halo Kak ${nama}! 👋 Ada yang bisa saya bantu terkait layanan pengiriman NSS Express?`,
+          waktu: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        },
+      ]);
+    }
+  }, [bukaChat, chatMode, isLoadingSettings, nama]);
+
+  // ====== Timeout koneksi (pakai statusRef agar tidak stale) ======
+  useEffect(() => {
+    if (chatMode !== "live" || !token || !conversationId) return;
+
+    setIsConnectingLive(true);
+    setConnectionError(null);
+
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (statusRef.current !== "connected") {
+        setConnectionError("Gagal terhubung ke server. Silakan coba lagi.");
+        setIsConnectingLive(false);
+      }
+    }, 10000);
+
+    return () => {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+    };
+  }, [chatMode, token, conversationId]);
+
+  // ====== Saat socket connected → batalkan timeout & tampilkan sambutan ======
+  useEffect(() => {
+    if (chatMode === "live" && status === "connected") {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+      setConnectionError(null);
+
+      if (isConnectingLive) {
+        setIsConnectingLive(false);
+        setDaftarPesan([
+          {
+            id: Date.now(),
+            pengirim: "admin",
+            teks: `Halo Kak ${nama}! Tim Customer Service kami telah terhubung. Ada yang bisa kami bantu?`,
+            waktu: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          },
+        ]);
+      }
+    }
+  }, [status, chatMode, isConnectingLive, nama]);
+
+  // ====== Listen pesan masuk dari admin ======
   useEffect(() => {
     if (!socket || chatMode !== "live") return;
 
@@ -80,10 +188,16 @@ const ChatWidget = ({
           id: data.id || Date.now(),
           pengirim: "admin",
           teks: data.message,
-          waktu: new Date(data.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          waktu: new Date(data.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         };
         setDaftarPesan((prev) => {
-          const exists = prev.find((p) => p.id === data.id || p.clientMessageId === data.clientMessageId);
+          const exists = prev.find(
+            (p) =>
+              p.id === data.id || p.clientMessageId === data.clientMessageId,
+          );
           if (exists) return prev;
           return [...prev, pesanBaruAdmin];
         });
@@ -91,7 +205,10 @@ const ChatWidget = ({
     };
 
     const handleConversationUpdated = (data: any) => {
-      if (data.conversationId === parseInt(conversationId || "0") && data.status === "closed") {
+      if (
+        data.conversationId === parseInt(conversationId || "0") &&
+        data.status === "closed"
+      ) {
         setIsClosed(true);
       }
     };
@@ -105,8 +222,61 @@ const ChatWidget = ({
     };
   }, [socket, chatMode, conversationId]);
 
-  const dapatkanWaktuSekarang = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [daftarPesan, isAiThinking, isConnectingLive]);
+
+  const dapatkanWaktuSekarang = () =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // ====== Submit form awal (buat conversation) ======
+  const handleMulaiChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nama.trim() || !nomorHp.trim()) {
+      alert("Harap lengkapi nama dan nomor WhatsApp Anda.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/live-chat/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: nama,
+          customer_whatsapp: nomorHp,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.message || "Gagal memulai sesi chat");
+
+      setToken(data.token);
+      setConversationId(data.conversationId.toString());
+
+      localStorage.setItem("live_chat_nama", nama);
+      localStorage.setItem("live_chat_nomor_hp", nomorHp);
+      localStorage.setItem("live_chat_token", data.token);
+      localStorage.setItem(
+        "live_chat_conversation_id",
+        data.conversationId.toString(),
+      );
+
+      setChatMode("ai");
+    } catch (error: any) {
+      alert(error.message || "Terjadi kesalahan");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ====== Chat dengan AI ======
   const handleAiMessage = async () => {
     if (!pesanInput.trim() || isAiThinking) return;
 
@@ -114,9 +284,30 @@ const ChatWidget = ({
     setPesanInput("");
     setUserMessageCount((prev) => prev + 1);
 
-    const userMsg: PesanChat = { id: Date.now(), pengirim: "user", teks: userText, waktu: dapatkanWaktuSekarang() };
+    const userMsg: PesanChat = {
+      id: Date.now(),
+      pengirim: "user",
+      teks: userText,
+      waktu: dapatkanWaktuSekarang(),
+    };
     setDaftarPesan((prev) => [...prev, userMsg]);
     setIsAiThinking(true);
+
+    if (conversationId) {
+      try {
+        await fetch("/api/live-chat/save-ai-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId,
+            message: userText,
+            senderType: "customer",
+          }),
+        });
+      } catch (error) {
+        console.error("Gagal simpan pesan user ke DB:", error);
+      }
+    }
 
     try {
       const chatHistoryForApi = daftarPesan.map((p) => ({
@@ -127,23 +318,52 @@ const ChatWidget = ({
       const res = await fetch("/api/gemini-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText, chatHistory: chatHistoryForApi }),
+        body: JSON.stringify({
+          message: userText,
+          chatHistory: chatHistoryForApi,
+          nama,
+          nomorHp,
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.reply) {
-        setDaftarPesan((prev) => [
-          ...prev,
-          { id: Date.now() + 1, pengirim: "ai", teks: data.reply, waktu: dapatkanWaktuSekarang() },
-        ]);
+        const aiMsg: PesanChat = {
+          id: Date.now() + 1,
+          pengirim: "ai",
+          teks: data.reply,
+          waktu: dapatkanWaktuSekarang(),
+        };
+        setDaftarPesan((prev) => [...prev, aiMsg]);
+
+        if (conversationId) {
+          try {
+            await fetch("/api/live-chat/save-ai-message", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                conversationId,
+                message: data.reply,
+                senderType: "ai",
+              }),
+            });
+          } catch (error) {
+            console.error("Gagal simpan pesan AI ke DB:", error);
+          }
+        }
       } else {
         throw new Error("Gagal mendapatkan jawaban AI");
       }
     } catch (error) {
       setDaftarPesan((prev) => [
         ...prev,
-        { id: Date.now() + 1, pengirim: "ai", teks: "Maaf, terjadi kesalahan pada sistem. Silakan hubungi Customer Service kami.", waktu: dapatkanWaktuSekarang() },
+        {
+          id: Date.now() + 1,
+          pengirim: "ai",
+          teks: "Maaf, terjadi kesalahan pada sistem. Silakan hubungi Customer Service kami.",
+          waktu: dapatkanWaktuSekarang(),
+        },
       ]);
     } finally {
       setIsAiThinking(false);
@@ -154,51 +374,42 @@ const ChatWidget = ({
     }
   };
 
-  const handleMulaiLiveChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nama.trim() || !nomorHp.trim()) {
-      alert("Harap lengkapi nama dan nomor WhatsApp Anda.");
+  // ====== Mulai live chat dengan admin ======
+  const handleMulaiLiveChat = async () => {
+    if (!conversationId || !token) {
+      alert("Sesi chat tidak valid. Silakan mulai ulang.");
       return;
     }
 
     setIsSubmitting(true);
+    setConnectionError(null);
+
     try {
-      const response = await fetch("/api/live-chat/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_name: nama, customer_whatsapp: nomorHp }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Gagal memulai sesi chat");
-
-      setToken(data.token);
-      setConversationId(data.conversationId.toString());
-      setChatMode("live");
+      setDaftarPesan([]);
+      setPesanInput("");
       setIsClosed(false);
+      setUserMessageCount(0);
+      setShowHumanButton(false);
 
-      localStorage.setItem("live_chat_token", data.token);
-      localStorage.setItem("live_chat_conversation_id", data.conversationId.toString());
-      localStorage.setItem("live_chat_nama", nama);
-      localStorage.setItem("live_chat_nomor_hp", nomorHp);
-
-      setDaftarPesan([
-        {
-          id: 1,
-          pengirim: "admin",
-          teks: `Halo Kak ${nama}! Tim Customer Service kami telah terhubung. Ada yang bisa kami bantu?`,
-          waktu: dapatkanWaktuSekarang(),
-        },
-      ]);
-    } catch (error) {
-      alert("Terjadi kesalahan saat menghubungkan ke agen. Silakan coba lagi.");
-    } finally {
+      setChatMode("live");
+    } catch (error: any) {
+      setConnectionError(
+        error.message || "Terjadi kesalahan saat menghubungkan ke agen.",
+      );
       setIsSubmitting(false);
     }
   };
 
+  // ====== Kirim pesan live ======
   const handleKirimPesanLive = () => {
-    if (isClosed || !pesanInput.trim() || !socket || !conversationId) return;
+    if (
+      isClosed ||
+      !pesanInput.trim() ||
+      !socket ||
+      !conversationId ||
+      status !== "connected"
+    )
+      return;
 
     const clientMessageId = `web-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const teksKirim = pesanInput;
@@ -216,15 +427,21 @@ const ChatWidget = ({
 
     socket.emit(
       "message:send",
-      { conversationId: parseInt(conversationId), clientMessageId, message: teksKirim, senderType: "customer" },
+      {
+        conversationId: parseInt(conversationId),
+        clientMessageId,
+        message: teksKirim,
+        senderType: "customer",
+      },
       (response: any) => {
-        if (!response?.success) alert(response?.error || "Gagal mengirim pesan.");
-      }
+        if (!response?.success)
+          alert(response?.error || "Gagal mengirim pesan.");
+      },
     );
   };
 
   const resetChat = () => {
-    setChatMode("ai");
+    setChatMode("form");
     setNama("");
     setNomorHp("");
     setPesanInput("");
@@ -234,12 +451,33 @@ const ChatWidget = ({
     setIsClosed(false);
     setUserMessageCount(0);
     setShowHumanButton(false);
+    setIsConnectingLive(false);
+    setConnectionError(null);
+    localStorage.removeItem("live_chat_token");
+    localStorage.removeItem("live_chat_conversation_id");
+    localStorage.removeItem("live_chat_nama");
+    localStorage.removeItem("live_chat_nomor_hp");
+  };
+
+  const handleKembaliKeAI = () => {
+    setChatMode("ai");
+    setDaftarPesan([]);
+    setConversationId(null);
+    setToken(null);
+    setIsClosed(false);
+    setUserMessageCount(0);
+    setShowHumanButton(false);
+    setIsConnectingLive(false);
+    setConnectionError(null);
     localStorage.removeItem("live_chat_token");
     localStorage.removeItem("live_chat_conversation_id");
   };
 
   return (
-    <aside aria-label="Live Chat Support" className="fixed bottom-6 right-4 md:right-6 z-50 flex flex-col items-end">
+    <aside
+      aria-label="Live Chat Support"
+      className="fixed bottom-6 right-4 md:right-6 z-50 flex flex-col items-end"
+    >
       <AnimatePresence>
         {bukaChat && (
           <motion.div
@@ -253,159 +491,290 @@ const ChatWidget = ({
               <div className="flex items-center gap-2.5">
                 <div className="relative">
                   <div className="w-8 h-8 rounded-sm bg-black text-[#FFCC00] flex items-center justify-center shadow-sm">
-                    {chatMode === "ai" ? <Bot size={16} /> : <Phone size={16} />}
+                    {chatMode === "ai" ? (
+                      <Bot size={16} />
+                    ) : chatMode === "live" ? (
+                      <Phone size={16} />
+                    ) : (
+                      <Users size={16} />
+                    )}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#FFCC00] rounded-full"></span>
+                  <span
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-[#FFCC00] rounded-full ${
+                      chatMode === "live" && status === "connected"
+                        ? "bg-emerald-500"
+                        : chatMode === "live" && status !== "connected"
+                          ? "bg-orange-500 animate-pulse"
+                          : "bg-emerald-500"
+                    }`}
+                  ></span>
                 </div>
                 <div>
                   <h4 className="font-extrabold text-sm leading-tight text-black">
-                    {chatMode === "ai" ? "Customer Service" : "Customer Service"}
+                    {chatMode === "ai"
+                      ? aiSettings.ai_name
+                      : chatMode === "live"
+                        ? "Customer Service"
+                        : "Selamat Datang"}
                   </h4>
                   <p className="text-[10px] text-black font-bold">
-                    {chatMode === "ai" ? "Siap Membantu 24/7" : status === "connected" ? "Tersambung" : "Menghubungkan..."}
+                    {chatMode === "ai"
+                      ? "Siap Membantu 24/7"
+                      : chatMode === "live"
+                        ? isConnectingLive
+                          ? "Menghubungkan..."
+                          : status === "connected"
+                            ? "Tersambung"
+                            : "Gagal Terhubung"
+                        : "Silakan isi data Anda"}
                   </p>
                 </div>
               </div>
-              <button onClick={() => setBukaChat(false)} className="text-black hover:bg-yellow-400 p-1.5 rounded-sm transition-colors cursor-pointer">
+              <button
+                onClick={() => setBukaChat(false)}
+                className="text-black hover:bg-yellow-400 p-1.5 rounded-sm transition-colors cursor-pointer"
+              >
                 <X size={16} strokeWidth={2.5} />
               </button>
             </div>
 
             <div className="flex flex-col flex-1 bg-slate-50 overflow-hidden">
+              {chatMode === "form" && (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex-1 p-6 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center text-[#FFCC00] mb-4">
+                      <Users size={32} />
+                    </div>
+                    <h3 className="font-extrabold text-gray-900 text-lg mb-2">
+                      Halo, Selamat Datang! 👋
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-6 max-w-[280px]">
+                      Silakan isi nama dan nomor WhatsApp Anda agar kami dapat
+                      membantu Anda dengan lebih baik.
+                    </p>
 
-              {(chatMode === "ai" || chatMode === "form") && (
+                    <form
+                      onSubmit={handleMulaiChat}
+                      className="w-full space-y-3"
+                    >
+                      <div className="relative">
+                        <Users
+                          size={16}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                        <input
+                          type="text"
+                          required
+                          value={nama}
+                          onChange={(e) => setNama(e.target.value)}
+                          placeholder="Nama Lengkap Anda"
+                          className="w-full pl-10 pr-3 py-2.5 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
+                        />
+                      </div>
+                      <div className="relative">
+                        <Phone
+                          size={16}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                        <input
+                          type="tel"
+                          required
+                          value={nomorHp}
+                          onChange={(e) => setNomorHp(e.target.value)}
+                          placeholder="Nomor WhatsApp (contoh: 08123456789)"
+                          className="w-full pl-10 pr-3 py-2.5 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <Send size={16} /> Mulai Chat
+                      </button>
+                    </form>
+
+                    <p className="text-[10px] text-gray-400 mt-4 flex items-center gap-1">
+                      <Lock size={10} /> Data Anda aman dan tidak akan dibagikan
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {chatMode === "ai" && (
                 <>
                   <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                    {daftarPesan.length === 0 && chatMode === "ai" && (
+                    {daftarPesan.length === 0 && !isLoadingSettings && (
                       <div className="bg-white border border-gray-200 rounded-sm p-3 text-xs text-gray-700 shadow-sm mb-2">
-                        <p className="font-bold mb-2 flex items-center gap-2"><Bot size={14} /> Halo! Saya asisten virtual NSS Express.</p>
-                        <p className="mb-3">Silakan pilih pertanyaan di bawah atau ketik pertanyaan Anda:</p>
+                        <p className="font-bold mb-2 flex items-center gap-2">
+                          <Bot size={14} /> Halo Kak {nama}! Saya asisten
+                          virtual {aiSettings.ai_name}.
+                        </p>
+                        <p className="mb-3">
+                          Silakan pilih pertanyaan di bawah atau ketik
+                          pertanyaan Anda:
+                        </p>
                         <div className="flex flex-wrap gap-2">
-                          {QUICK_QUESTIONS.map((q, i) => (
-                            <button key={i} onClick={() => { setPesanInput(q); }} className="text-[11px] bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-1 rounded-sm hover:bg-yellow-100 transition-colors text-left">
-                              {q}
-                            </button>
-                          ))}
+                          {aiSettings.quick_questions.length > 0 ? (
+                            aiSettings.quick_questions.map((q, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setPesanInput(q)}
+                                className="text-[11px] bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-1 rounded-sm hover:bg-yellow-100 transition-colors text-left"
+                              >
+                                {q}
+                              </button>
+                            ))
+                          ) : (
+                            <p className="text-xs text-gray-400 italic">
+                              Belum ada pertanyaan cepat tersedia.
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
 
                     {daftarPesan.map((msg) => (
-                      <div key={msg.id} className={`flex flex-col ${msg.pengirim === "user" ? "items-end" : "items-start"}`}>
-                        <div className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${msg.pengirim === "user" ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none" : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
-                          }`}>
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${
+                          msg.pengirim === "user" ? "items-end" : "items-start"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
+                            msg.pengirim === "user"
+                              ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none"
+                              : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
+                          }`}
+                        >
                           {msg.teks}
                         </div>
-                        <span className="text-[10px] text-gray-400 mt-0.5 px-1">{msg.waktu}</span>
+                        <span className="text-[10px] text-gray-400 mt-0.5 px-1">
+                          {msg.waktu}
+                        </span>
                       </div>
                     ))}
 
                     {isAiThinking && (
                       <div className="flex items-start">
                         <div className="bg-white border border-gray-200 rounded-sm rounded-bl-none px-3 py-2 text-xs text-gray-500 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" /> Sedang mencari jawaban...
+                          <Loader2 size={14} className="animate-spin" /> Sedang
+                          mencari jawaban...
                         </div>
                       </div>
                     )}
                     <div ref={messagesEndRef} />
                   </div>
 
-                  {chatMode === "form" && (
-                    <div className="p-4 bg-yellow-50 border-t border-yellow-200 space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-[#FFCC00] shrink-0">
-                          <Users size={20} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-extrabold text-gray-900 text-sm mb-1">Butuh Bantuan Lebih Lanjut?</h3>
-                          <p className="text-xs text-gray-600 mb-3">
-                            Silakan terhubung langsung dengan tim Customer Service kami untuk penanganan yang lebih spesifik.
-                          </p>
-                          <form onSubmit={handleMulaiLiveChat} className="space-y-2">
-                            <input
-                              type="text"
-                              required
-                              value={nama}
-                              onChange={(e) => setNama(e.target.value)}
-                              placeholder="Nama Lengkap Anda"
-                              className="w-full px-3 py-2 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
-                            />
-                            <input
-                              type="tel"
-                              required
-                              value={nomorHp}
-                              onChange={(e) => setNomorHp(e.target.value)}
-                              placeholder="Nomor WhatsApp"
-                              className="w-full px-3 py-2 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
-                            />
-                            <button
-                              type="submit"
-                              disabled={isSubmitting}
-                              className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <><Phone size={16} /> Hubungkan dengan Customer Service</>}
-                            </button>
-                          </form>
-                          <button onClick={() => setChatMode("ai")} className="w-full text-xs text-gray-500 hover:text-gray-800 underline mt-1">
-                            Kembali ke Asisten Virtual
-                          </button>
-                        </div>
-                      </div>
+                  <div className="p-2.5 bg-white border-t border-gray-200 shrink-0 space-y-2">
+                    {showHumanButton && (
+                      <button
+                        onClick={handleMulaiLiveChat}
+                        disabled={isSubmitting}
+                        className="w-full bg-gradient-to-r from-[#FFCC00] to-yellow-400 hover:from-yellow-400 hover:to-[#FFCC00] text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Users size={14} />
+                        )}
+                        {isSubmitting
+                          ? "Menghubungkan..."
+                          : "Hubungkan dengan Customer Service"}
+                      </button>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={pesanInput}
+                        onChange={(e) => setPesanInput(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleAiMessage()
+                        }
+                        placeholder="Ketik pertanyaan Anda..."
+                        disabled={isAiThinking}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-900 placeholder:text-gray-400 disabled:bg-gray-100"
+                      />
+                      <button
+                        onClick={handleAiMessage}
+                        disabled={!pesanInput.trim() || isAiThinking}
+                        className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
+                      >
+                        <Send size={14} />
+                      </button>
                     </div>
-                  )}
-
-                  {chatMode === "ai" && (
-                    <div className="p-2.5 bg-white border-t border-gray-200 shrink-0 space-y-2">
-                      {showHumanButton && (
-                        <button
-                          onClick={() => setChatMode("form")}
-                          className="w-full bg-gradient-to-r from-[#FFCC00] to-yellow-400 hover:from-yellow-400 hover:to-[#FFCC00] text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          <Users size={14} /> Hubungkan dengan Customer Service
-                        </button>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          value={pesanInput}
-                          onChange={(e) => setPesanInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleAiMessage()}
-                          placeholder="Ketik pertanyaan Anda..."
-                          disabled={isAiThinking}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-900 placeholder:text-gray-400 disabled:bg-gray-100"
-                        />
-                        <button
-                          onClick={handleAiMessage}
-                          disabled={!pesanInput.trim() || isAiThinking}
-                          className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
-                        >
-                          <Send size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </>
               )}
 
               {chatMode === "live" && (
                 <>
                   <div className="px-3 py-1.5 bg-yellow-100 border-b border-yellow-200 flex items-center justify-between text-[11px] text-gray-800 shrink-0">
-                    <button onClick={resetChat} className="flex items-center gap-1 hover:text-yellow-800 transition-colors cursor-pointer font-semibold">
-                      <ArrowLeft size={12} /> Mulai Ulang
+                    <button
+                      onClick={handleKembaliKeAI}
+                      className="flex items-center gap-1 hover:text-yellow-800 transition-colors cursor-pointer font-semibold"
+                    >
+                      <ArrowLeft size={12} /> Kembali ke AI
                     </button>
                   </div>
 
                   <div className="flex-1 p-3 overflow-y-auto space-y-2.5">
-                    {daftarPesan.map((msg) => (
-                      <div key={msg.clientMessageId || msg.id} className={`flex flex-col ${msg.pengirim === "user" ? "items-end" : "items-start"}`}>
-                        <div className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${msg.pengirim === "user" ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none" : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
-                          }`}>
-                          {msg.teks}
-                        </div>
-                        <span className="text-[10px] text-gray-400 mt-0.5 px-1">{msg.waktu}</span>
+                    {isConnectingLive && (
+                      <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                        <Loader2
+                          size={32}
+                          className="animate-spin text-[#FFCC00] mb-3"
+                        />
+                        <p className="text-sm font-bold text-gray-700 mb-1">
+                          Menghubungkan ke Customer Service...
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Mohon tunggu sebentar
+                        </p>
                       </div>
-                    ))}
+                    )}
+
+                    {connectionError && !isConnectingLive && (
+                      <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                        <AlertCircle size={32} className="text-red-500 mb-3" />
+                        <p className="text-sm font-bold text-red-700 mb-2">
+                          {connectionError}
+                        </p>
+                        <button
+                          onClick={handleMulaiLiveChat}
+                          className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-sm text-xs flex items-center gap-2 cursor-pointer"
+                        >
+                          <RefreshCw size={12} /> Coba Lagi
+                        </button>
+                      </div>
+                    )}
+
+                    {!isConnectingLive &&
+                      !connectionError &&
+                      daftarPesan.map((msg) => (
+                        <div
+                          key={msg.clientMessageId || msg.id}
+                          className={`flex flex-col ${
+                            msg.pengirim === "user"
+                              ? "items-end"
+                              : "items-start"
+                          }`}
+                        >
+                          <div
+                            className={`max-w-[85%] px-3 py-2 rounded-sm text-xs sm:text-sm leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
+                              msg.pengirim === "user"
+                                ? "bg-[#FFCC00] text-gray-950 font-medium rounded-br-none"
+                                : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
+                            }`}
+                          >
+                            {msg.teks}
+                          </div>
+                          <span className="text-[10px] text-gray-400 mt-0.5 px-1">
+                            {msg.waktu}
+                          </span>
+                        </div>
+                      ))}
                     <div ref={messagesEndRef} />
                   </div>
 
@@ -423,14 +792,35 @@ const ChatWidget = ({
                             type="text"
                             value={pesanInput}
                             onChange={(e) => setPesanInput(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleKirimPesanLive()}
-                            placeholder={status === "connected" ? "Ketik pesan Anda..." : "Menunggu koneksi..."}
-                            disabled={status !== "connected" || isClosed}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && handleKirimPesanLive()
+                            }
+                            placeholder={
+                              isConnectingLive
+                                ? "Menghubungkan..."
+                                : status === "connected"
+                                  ? "Ketik pesan Anda..."
+                                  : connectionError
+                                    ? "Gagal terhubung"
+                                    : "Menunggu koneksi..."
+                            }
+                            disabled={
+                              status !== "connected" ||
+                              isClosed ||
+                              isConnectingLive ||
+                              !!connectionError
+                            }
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-sm text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCC00] text-gray-900 placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                           <button
                             onClick={handleKirimPesanLive}
-                            disabled={!pesanInput.trim() || status !== "connected" || isClosed}
+                            disabled={
+                              !pesanInput.trim() ||
+                              status !== "connected" ||
+                              isClosed ||
+                              isConnectingLive ||
+                              !!connectionError
+                            }
                             className="bg-[#FFCC00] hover:bg-yellow-400 disabled:bg-gray-300 text-gray-950 p-2 rounded-sm transition-colors cursor-pointer flex items-center justify-center shrink-0 shadow-sm disabled:cursor-not-allowed"
                           >
                             <Send size={14} />
@@ -459,8 +849,12 @@ const ChatWidget = ({
           <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white rounded-full"></span>
         </div>
         <div className="text-left pr-1">
-          <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight">Customer Service</h4>
-          <p className="text-[10px] sm:text-[11px] text-gray-600 leading-tight">Siap Membantu</p>
+          <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight">
+            {aiSettings.ai_name}
+          </h4>
+          <p className="text-[10px] sm:text-[11px] text-gray-600 leading-tight">
+            Siap Membantu
+          </p>
         </div>
       </motion.button>
     </aside>

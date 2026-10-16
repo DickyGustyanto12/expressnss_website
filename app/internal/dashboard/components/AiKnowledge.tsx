@@ -34,6 +34,16 @@ interface KnowledgeItem {
   updated_at: string;
 }
 
+interface AiSettings {
+  id: number;
+  ai_name: string;
+  custom_greeting: string;
+  persona: string;
+  limitations: string;
+  quick_questions: string;
+  instructions: string;
+}
+
 interface AiKnowledgeProps {
   adminId?: number;
   adminName?: string;
@@ -63,6 +73,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   const [formData, setFormData] = useState({
     kategori: "umum",
@@ -73,14 +84,15 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
     urutan: 0,
   });
 
-  const [settingsForm, setSettingsForm] = useState({
-    ai_name: "Customer Service NSS Express",
-    custom_greeting:
-      "Halo Kak! 👋 Ada yang bisa saya bantu terkait layanan pengiriman NSS Express?",
-    persona:
-      "Kamu adalah Customer Service Virtual yang ramah, profesional, dan informatif dari perusahaan logistik bernama NSS Express. Gunakan bahasa Indonesia yang baik, sopan, namun santai (gunakan sapaan 'Kak'). Jawablah dengan ringkas, jelas, dan tidak bertele-tele.",
-    limitations:
-      "Kamu DILARANG KERAS mendiskusikan apa pun selain topik logistik, pengiriman barang, dan layanan NSS Express. Jangan pernah menyebut kamu adalah AI, bot, atau asisten virtual. JAWAB HANYA BERDASARKAN KNOWLEDGE BASE. Jika tidak ada di knowledge base, jawab: 'Maaf Kak, untuk informasi tersebut silakan hubungi Customer Service manusia kami.'",
+  // State kosong - akan diisi dari database
+  const [settingsForm, setSettingsForm] = useState<AiSettings>({
+    id: 0,
+    ai_name: "",
+    custom_greeting: "",
+    persona: "",
+    limitations: "",
+    quick_questions: "",
+    instructions: "",
   });
 
   const [activeSetting, setActiveSetting] = useState<SettingKey | null>(null);
@@ -104,19 +116,32 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
   };
 
   const loadSettings = async () => {
+    setIsLoadingSettings(true);
     try {
       const res = await fetch("/api/ai-settings");
       if (res.ok) {
         const data = await res.json();
         setSettingsForm({
-          ai_name: data.ai_name || settingsForm.ai_name,
-          custom_greeting: data.custom_greeting || settingsForm.custom_greeting,
-          persona: data.persona || settingsForm.persona,
-          limitations: data.limitations || settingsForm.limitations,
+          id: data.id || 0,
+          ai_name: data.ai_name || "Customer Service NSS Express",
+          custom_greeting:
+            data.custom_greeting || "Halo Kak! Ada yang bisa saya bantu?",
+          persona:
+            data.persona ||
+            "Kamu adalah Customer Service Virtual yang ramah dan profesional.",
+          limitations:
+            data.limitations ||
+            "Jawab hanya berdasarkan knowledge base yang tersedia.",
+          quick_questions: data.quick_questions || "[]",
+          instructions: data.instructions || "",
         });
+      } else {
+        console.warn("Pengaturan AI belum ada, menggunakan default");
       }
     } catch (error) {
       console.error("Gagal memuat pengaturan AI:", error);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
@@ -164,7 +189,12 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       const res = await fetch("/api/ai-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settingsForm),
+        body: JSON.stringify({
+          ai_name: settingsForm.ai_name,
+          custom_greeting: settingsForm.custom_greeting,
+          persona: settingsForm.persona,
+          limitations: settingsForm.limitations,
+        }),
       });
       const result = await res.json();
 
@@ -177,6 +207,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
           showConfirmButton: false,
         });
         setActiveSetting(null);
+        loadSettings(); // Reload untuk memastikan data terbaru
       } else {
         throw new Error(result.error || "Gagal menyimpan");
       }
@@ -301,6 +332,12 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
     return colors[kategori] || "bg-gray-100 text-gray-800";
   };
 
+  const getSettingPreview = (key: SettingKey): string => {
+    const value = settingsForm[key] || "";
+    if (value.length > 80) return value.substring(0, 80) + "...";
+    return value;
+  };
+
   const settingCards = [
     {
       key: "ai_name" as SettingKey,
@@ -308,7 +345,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       title: "Nama AI",
       description: "Identitas atau nama yang digunakan oleh chatbot.",
       color: "bg-blue-100 text-blue-700",
-      preview: settingsForm.ai_name,
+      preview: settingsForm.ai_name || "Belum diatur",
     },
     {
       key: "custom_greeting" as SettingKey,
@@ -316,7 +353,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       title: "Custom Sapaan",
       description: "Pesan pembuka otomatis saat pelanggan memulai chat.",
       color: "bg-green-100 text-green-700",
-      preview: settingsForm.custom_greeting,
+      preview: settingsForm.custom_greeting || "Belum diatur",
     },
     {
       key: "persona" as SettingKey,
@@ -324,7 +361,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       title: "Persona AI",
       description: "Karakter, nada bicara, dan gaya bahasa yang digunakan.",
       color: "bg-purple-100 text-purple-700",
-      preview: settingsForm.persona,
+      preview: settingsForm.persona || "Belum diatur",
     },
     {
       key: "limitations" as SettingKey,
@@ -332,7 +369,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       title: "Batasan AI",
       description: "Aturan ketat yang tidak boleh dilanggar oleh AI.",
       color: "bg-red-100 text-red-700",
-      preview: settingsForm.limitations,
+      preview: settingsForm.limitations || "Belum diatur",
     },
   ];
 
@@ -343,7 +380,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
 
   return (
     <div className="space-y-8">
-      {/* Header Utama */}
       <div className="bg-white px-6 py-5 rounded-lg shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -360,43 +396,60 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
         </div>
       </div>
 
-      {/* SECTION 1: Konfigurasi AI (Card Grid) */}
       <div>
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
           <Settings size={20} className="text-gray-600" />
           Konfigurasi AI Chatbot
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {settingCards.map((card) => (
-            <div
-              key={card.key}
-              onClick={() => setActiveSetting(card.key)}
-              className="group bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col h-full"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-xl ${card.color}`}>
-                  {card.icon}
+
+        {isLoadingSettings ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
                 </div>
-                <Edit3
-                  size={18}
-                  className="text-gray-400 group-hover:text-[#FFCC00] transition-colors"
-                />
+                <div className="h-5 bg-gray-200 rounded w-24 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-full mb-4"></div>
+                <div className="h-16 bg-gray-200 rounded-lg"></div>
               </div>
-              <h4 className="font-extrabold text-gray-900 text-lg mb-2">
-                {card.title}
-              </h4>
-              <p className="text-xs text-gray-500 mb-4">{card.description}</p>
-              <div className="mt-auto bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <p className="text-xs text-gray-700 line-clamp-3 italic">
-                  "{card.preview}"
-                </p>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {settingCards.map((card) => (
+              <div
+                key={card.key}
+                onClick={() => setActiveSetting(card.key)}
+                className="group bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col h-full"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-xl ${card.color}`}>
+                    {card.icon}
+                  </div>
+                  <Edit3
+                    size={18}
+                    className="text-gray-400 group-hover:text-[#FFCC00] transition-colors"
+                  />
+                </div>
+                <h4 className="font-extrabold text-gray-900 text-lg mb-2">
+                  {card.title}
+                </h4>
+                <p className="text-xs text-gray-500 mb-4">{card.description}</p>
+                <div className="mt-auto bg-gray-50 rounded-lg p-3 border border-gray-100">
+                  <p className="text-xs text-gray-700 line-clamp-3 italic">
+                    "{card.preview}"
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* SECTION 2: Daftar Knowledge Base */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-5 border-b border-gray-200 bg-gray-50">
           <div className="flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
@@ -555,7 +608,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
         )}
       </div>
 
-      {/* Modal Tambah/Edit Knowledge */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -703,7 +755,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
         </div>
       )}
 
-      {/* Modal Edit Setting AI (Dinamis berdasarkan card yang diklik) */}
       {activeSetting && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -812,8 +863,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
                     required
                   />
                   <p className="text-[10px] text-gray-500 mt-1">
-                    Aturan ketat yang TIDAK BOLEH dilanggar oleh AI (misal:
-                    dilarang membahas politik).
+                    Aturan ketat yang TIDAK BOLEH dilanggar oleh AI.
                   </p>
                 </div>
               )}

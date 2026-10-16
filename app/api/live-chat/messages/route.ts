@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
 import type { RowDataPacket } from "mysql2";
 
-export async function GET(request: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const conversationId = searchParams.get("conversationId");
-    const after = searchParams.get("after");
+    const limit = searchParams.get("limit");
 
     if (!conversationId) {
       return NextResponse.json(
@@ -15,27 +15,21 @@ export async function GET(request: Request) {
       );
     }
 
-    let query = `
-      SELECT id, conversation_id, client_message_id, sender_type, sender_admin_id, message, created_at 
-      FROM live_chat_messages 
-      WHERE conversation_id = ?
-    `;
-    const params: any[] = [conversationId];
+    let query =
+      "SELECT * FROM live_chat_messages WHERE conversation_id = ? ORDER BY created_at ASC";
+    const params: any[] = [parseInt(conversationId)];
 
-    if (after) {
-      query += " AND id > ?";
-      params.push(after);
+    if (limit) {
+      query += " LIMIT ?";
+      params.push(parseInt(limit));
     }
 
-    query += " ORDER BY id ASC";
-
-    const [rows] = await pool.execute<RowDataPacket[]>(query, params);
-
-    return NextResponse.json(rows, { status: 200 });
+    const [rows] = await pool.query<RowDataPacket[]>(query, params);
+    return NextResponse.json(rows);
   } catch (error) {
-    console.error("Error fetch messages:", error);
+    console.error("Error fetching messages:", error);
     return NextResponse.json(
-      { error: "Gagal mengambil riwayat pesan" },
+      { error: "Gagal mengambil pesan" },
       { status: 500 },
     );
   }

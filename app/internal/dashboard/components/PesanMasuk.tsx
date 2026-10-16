@@ -11,8 +11,16 @@ import {
   ListOrdered,
   Play,
   Lock,
+  Bell,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  X,
+  AlertCircle, // PERBAIKAN: Ditambahkan karena digunakan di connectionToast
 } from "lucide-react";
 import { useLiveChatSocket } from "@/app/hooks/use-live-chat-socket";
+import { useAdminNotification } from "@/app/hooks/use-live-admin-notifications";
+import { useGlobalNotification } from "@/app/hooks/use-global-notification";
 import Swal from "sweetalert2";
 
 interface Pesan {
@@ -49,17 +57,28 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   const [inputPesan, setInputPesan] = useState<string>("");
   const [pencarian, setPencarian] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [connectionToast, setConnectionToast] = useState({
+    show: false,
+    message: "",
+    type: "warning" as "warning" | "success" | "error",
+  });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const kontakAktifIdRef = useRef<number | null>(kontakAktifId);
   const hasLoadedRef = useRef(false);
   const listenersAttachedRef = useRef(false);
+  const pendingClaimIdRef = useRef<number | null>(null);
+
+  // PERBAIKAN: Hanya ambil unreadCount, karena notifikasi sudah otomatis aktif di hook
+  const { unreadCount: globalUnreadCount } = useAdminNotification(adminId);
+  const { showSuccess, showError } = useGlobalNotification();
+
+  const { socket, status } = useLiveChatSocket(null, null, true, adminId);
 
   useEffect(() => {
     kontakAktifIdRef.current = kontakAktifId;
   }, [kontakAktifId]);
-
-  const { socket, status } = useLiveChatSocket(null, null, true, adminId);
 
   useEffect(() => {
     if (kontakAktifId) {
@@ -67,62 +86,145 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     }
   }, [daftarPesan, kontakAktifId]);
 
+  // PERBAIKAN: useEffect auto-prompt notifikasi DIHAPUS
+
   const loadConversations = useCallback(async () => {
     setIsLoading(true);
+    setApiError(null);
     try {
       const res = await fetch("/api/live-chat/conversations");
       const data = await res.json();
-      if (res.ok) {
-        const formattedData: Pesan[] = data.map((item: any) => ({
-          id: item.id,
-          pengirim: item.customer_name || "Unknown",
-          email: item.customer_email || "",
-          noHp: item.customer_whatsapp || "",
-          avatar: (item.customer_name || "UN").substring(0, 2).toUpperCase(),
-          tanggal: new Date(item.created_at).toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-          waktu: new Date(item.created_at).toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          statusChat: item.status === "closed" ? "selesai" : "antrian",
-          status: item.status,
-          assigned_admin_id: item.assigned_admin_id,
-          sudahDimulai: item.assigned_admin_id !== null && Number(item.assigned_admin_id) === Number(adminId),
-          unread_count: item.unread_count || 0,
-          riwayatChat: [],
-        }));
 
-        setDaftarPesan((prev) => {
-          return formattedData.map((newItem) => {
-            const existing = prev.find((p) => p.id === newItem.id);
-            if (existing) {
-              return {
-                ...newItem,
-                riwayatChat: existing.riwayatChat,
-                unread_count: existing.unread_count,
-              };
+      if (res.ok) {
+        const conversationsWithLastMessage = await Promise.all(
+          data.map(async (item: any) => {
+            let lastMessage = null;
+            try {
+              const msgRes = await fetch(
+                `/api/live-chat/messages?conversationId=${item.id}&limit=1`,
+              );
+              if (msgRes.ok) {
+                const msgs = await msgRes.json();
+                if (Array.isArray(msgs) && msgs.length > 0) {
+                  lastMessage = msgs[msgs.length - 1];
+                }
+              }
+            } catch (err) {
+              console.error(`Gagal load pesan untuk conv ${item.id}:`, err);
             }
-            return newItem;
-          });
-        });
+            return { ...item, lastMessage };
+          }),
+        );
+
+        const formattedData: Pesan[] = conversationsWithLastMessage.map(
+          (item: any) => ({
+            id: item.id,
+            pengirim: item.customer_name || "Unknown",
+            email: item.customer_email || "",
+            noHp: item.customer_whatsapp || "",
+            avatar: (item.customer_name || "UN").substring(0, 2).toUpperCase(),
+            tanggal: new Date(item.created_at).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            waktu: new Date(item.created_at).toLocaleTimeString("id-ID", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            statusChat: item.status === "closed" ? "selesai" : "antrian",
+            status: item.status,
+            assigned_admin_id: item.assigned_admin_id,
+            sudahDimulai:
+              item.assigned_admin_id !== null &&
+              Number(item.assigned_admin_id) === Number(adminId),
+            unread_count: item.unread_count || 0,
+            riwayatChat: item.lastMessage
+              ? [
+                  {
+                    id: item.lastMessage.id,
+                    penulis:
+                      item.lastMessage.sender_type === "customer"
+                        ? ("pelanggan" as const)
+                        : ("admin" as const),
+                    teks: item.lastMessage.message,
+                    waktu: new Date(
+                      item.lastMessage.created_at,
+                    ).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                    client_message_id: item.lastMessage.client_message_id,
+                  },
+                ]
+              : [],
+          }),
+        );
+
+        setDaftarPesan(formattedData);
+      } else {
+        setApiError(data.error || "Gagal memuat data percakapan.");
       }
     } catch (error) {
       console.error("Gagal memuat percakapan:", error);
+      setApiError("Terjadi kesalahan saat memuat data.");
     } finally {
       setIsLoading(false);
     }
   }, [adminId]);
 
   useEffect(() => {
-    if (socket && status === "connected" && !hasLoadedRef.current) {
+    if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
       loadConversations();
     }
-  }, [socket, status, loadConversations]);
+  }, [loadConversations]);
+
+  // Auto-retry claim saat socket connected
+  useEffect(() => {
+    if (status === "connected" && pendingClaimIdRef.current !== null) {
+      const claimId = pendingClaimIdRef.current;
+      pendingClaimIdRef.current = null;
+
+      setConnectionToast({
+        show: true,
+        message: "Terhubung! Memproses permintaan...",
+        type: "success",
+      });
+
+      setTimeout(() => {
+        setConnectionToast((prev) => ({ ...prev, show: false }));
+      }, 3000);
+
+      if (socket) {
+        socket.emit(
+          "conversation:claim",
+          { conversationId: claimId, adminId },
+          (response: any) => {
+            if (response.success) {
+              setDaftarPesan((prev) =>
+                prev.map((p) =>
+                  p.id === claimId
+                    ? {
+                        ...p,
+                        sudahDimulai: true,
+                        status: "assigned",
+                        assigned_admin_id: adminId,
+                      }
+                    : p,
+                ),
+              );
+              setKontakAktifId(claimId);
+              loadMessageHistory(claimId);
+              showSuccess("Chat berhasil diambil");
+            } else {
+              showError(response.error || "Chat sudah diambil admin lain.");
+            }
+          },
+        );
+      }
+    }
+  }, [status, socket, adminId]);
 
   useEffect(() => {
     if (!socket || status !== "connected") return;
@@ -138,10 +240,10 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           return [
             {
               id: data.conversationId,
-              pengirim: "Unknown",
+              pengirim: data.customerName || "Unknown",
               email: "",
-              noHp: "",
-              avatar: "UN",
+              noHp: data.customerWhatsapp || "",
+              avatar: (data.customerName || "UN").substring(0, 2).toUpperCase(),
               tanggal: new Date().toLocaleDateString("id-ID"),
               waktu: new Date().toLocaleTimeString("id-ID", {
                 hour: "2-digit",
@@ -241,9 +343,18 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     };
   }, [socket, status, adminId]);
 
+  useEffect(() => {
+    if (kontakAktifId) {
+      setDaftarPesan((prev) =>
+        prev.map((p) =>
+          p.id === kontakAktifId ? { ...p, unread_count: 0 } : p,
+        ),
+      );
+    }
+  }, [kontakAktifId]);
+
   const loadMessageHistory = async (convId: number) => {
     setKontakAktifId(convId);
-
     try {
       const res = await fetch(
         `/api/live-chat/messages?conversationId=${convId}`,
@@ -279,12 +390,20 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   };
 
   const handleMulaiChat = (id: number) => {
-    if (!socket) {
-      Swal.fire({
-        icon: "error",
-        title: "Koneksi Error",
-        text: "Socket belum terhubung.",
+    if (!socket || status !== "connected") {
+      pendingClaimIdRef.current = id;
+
+      setConnectionToast({
+        show: true,
+        message:
+          "Sistem sedang menghubungkan... Mencoba otomatis dalam 3 detik.",
+        type: "warning",
       });
+
+      setTimeout(() => {
+        setConnectionToast((prev) => ({ ...prev, show: false }));
+      }, 5000);
+
       return;
     }
 
@@ -297,22 +416,19 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
             prev.map((p) =>
               p.id === id
                 ? {
-                  ...p,
-                  sudahDimulai: true,
-                  status: "assigned",
-                  assigned_admin_id: adminId,
-                }
+                    ...p,
+                    sudahDimulai: true,
+                    status: "assigned",
+                    assigned_admin_id: adminId,
+                  }
                 : p,
             ),
           );
           setKontakAktifId(id);
           loadMessageHistory(id);
+          showSuccess("Chat berhasil diambil");
         } else {
-          Swal.fire({
-            icon: "error",
-            title: "Gagal",
-            text: response.error || "Chat sudah diambil admin lain.",
-          });
+          showError(response.error || "Chat sudah diambil admin lain.");
         }
       },
     );
@@ -358,11 +474,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
       },
       (response: any) => {
         if (!response.success) {
-          Swal.fire({
-            icon: "error",
-            title: "Gagal Mengirim",
-            text: response.error,
-          });
+          showError(response.error || "Gagal mengirim pesan");
         }
       },
     );
@@ -385,7 +497,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           (response: any) => {
             if (response.success) {
               setKontakAktifId(null);
-              Swal.fire("Berhasil", "Percakapan telah ditutup.", "success");
+              showSuccess("Percakapan telah ditutup");
             }
           },
         );
@@ -393,10 +505,15 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     });
   };
 
+  // PERBAIKAN: Fungsi handleEnableNotification DIHAPUS
+
+  const handleReload = () => {
+    hasLoadedRef.current = false;
+    loadConversations();
+  };
+
   const pesanTersaringTab = daftarPesan.filter((item) => {
-    if (tabAktif === "riwayat") {
-      return item.status === "closed";
-    }
+    if (tabAktif === "riwayat") return item.status === "closed";
     return item.statusChat === "antrian";
   });
 
@@ -414,39 +531,134 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   const kontakAktif =
     daftarPesan.find((item) => item.id === kontakAktifId) || null;
 
+  const totalUnreadAntrian = daftarPesan
+    .filter((p) => p.statusChat === "antrian")
+    .reduce((sum, p) => sum + (p.unread_count || 0), 0);
+
   return (
-    <div className="space-y-2 h-full flex flex-col">
+    <div className="space-y-2 h-full flex flex-col relative">
+      {/* Connection Toast (Bawah Tengah) */}
+      {connectionToast.show && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div
+            className={`flex items-center gap-3 px-5 py-3 rounded-lg shadow-2xl border-l-4 ${
+              connectionToast.type === "warning"
+                ? "bg-yellow-50 border-yellow-500 text-yellow-800"
+                : connectionToast.type === "success"
+                  ? "bg-green-50 border-green-500 text-green-800"
+                  : "bg-red-50 border-red-500 text-red-800"
+            }`}
+            style={{ animation: "slideUp 0.3s ease-out" }}
+          >
+            {connectionToast.type === "warning" ? (
+              <AlertCircle size={20} className="text-yellow-600" />
+            ) : connectionToast.type === "success" ? (
+              <CheckCircle2 size={20} className="text-green-600" />
+            ) : (
+              <X size={20} className="text-red-600" />
+            )}
+            <p className="text-sm font-medium">{connectionToast.message}</p>
+            <button
+              onClick={() =>
+                setConnectionToast((prev) => ({ ...prev, show: false }))
+              }
+              className="ml-2 text-gray-400 hover:text-gray-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translate(-50%, 100px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+      `}</style>
+
+      {/* Header */}
       <div className="bg-white px-5 py-3 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00] shrink-0">
-        <h2 className="text-xl font-extrabold text-gray-900 mb-1">
-          Manajemen Pesan Masuk
-        </h2>
-        <p className="text-sm text-gray-500">
-          Kelola antrian pesan dan riwayat percakapan pelanggan NSS Express.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-extrabold text-gray-900 mb-1">
+              Manajemen Pesan Masuk
+            </h2>
+            <p className="text-sm text-gray-500">
+              Kelola antrian pesan dan riwayat percakapan pelanggan NSS Express.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Socket Status */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold ${
+                status === "connected"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-orange-100 text-orange-700"
+              }`}
+            >
+              {status === "connected" ? (
+                <Wifi size={12} />
+              ) : (
+                <WifiOff size={12} />
+              )}
+              {status === "connected" ? "Live" : "Connecting..."}
+            </div>
+
+            {/* Badge Unread */}
+            {globalUnreadCount > 0 && (
+              <div className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-pulse shadow-lg">
+                <Bell size={14} />
+                <span>{globalUnreadCount} pesan baru</span>
+              </div>
+            )}
+
+            {/* PERBAIKAN: Notifikasi selalu aktif, tidak ada tombol disable */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+              <Bell size={14} />
+              <span>Notifikasi Aktif</span>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Main Content */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex-1 min-h-0 flex">
         <div className="w-full md:w-5/12 lg:w-4/12 border-r border-gray-200 flex flex-col bg-white h-full overflow-hidden">
           <div className="grid grid-cols-2 bg-gray-100 p-1.5 border-b border-gray-200 gap-1 shrink-0">
             <button
               onClick={() => setTabAktif("antrian")}
-              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${tabAktif === "antrian"
-                ? "bg-white text-gray-950 shadow-xs border border-gray-200"
-                : "text-gray-600 hover:text-gray-900"
-                }`}
+              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer relative ${
+                tabAktif === "antrian"
+                  ? "bg-white text-gray-950 shadow-xs border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
             >
               <ListOrdered size={16} />
               <span>
                 Antrian (
                 {daftarPesan.filter((i) => i.statusChat === "antrian").length})
               </span>
+              {totalUnreadAntrian > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                  {totalUnreadAntrian > 99 ? "99+" : totalUnreadAntrian}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setTabAktif("riwayat")}
-              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${tabAktif === "riwayat"
-                ? "bg-white text-gray-950 shadow-xs border border-gray-200"
-                : "text-gray-600 hover:text-gray-900"
-                }`}
+              className={`flex items-center justify-center gap-2 py-2 text-xs font-extrabold rounded-md transition-all cursor-pointer ${
+                tabAktif === "riwayat"
+                  ? "bg-white text-gray-950 shadow-xs border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
             >
               <History size={16} />
               <span>
@@ -471,8 +683,20 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-100 min-h-0">
             {isLoading ? (
-              <div className="p-6 text-center text-gray-400 text-xs">
+              <div className="p-6 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
+                <RefreshCw size={20} className="animate-spin" />
                 Memuat data...
+              </div>
+            ) : apiError ? (
+              <div className="p-6 text-center">
+                <AlertCircle size={32} className="mx-auto text-red-400 mb-2" />
+                <p className="text-xs text-red-600 mb-3">{apiError}</p>
+                <button
+                  onClick={handleReload}
+                  className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-bold px-4 py-2 rounded-md text-xs flex items-center gap-2 mx-auto cursor-pointer"
+                >
+                  <RefreshCw size={14} /> Coba Lagi
+                </button>
               </div>
             ) : kontakTersaring.length === 0 ? (
               <div className="p-6 text-center text-gray-400 text-xs">
@@ -493,10 +717,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
-                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                            : "hover:bg-gray-50"
-                            }`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                            isAktif
+                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
                           <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                             {kontak.avatar}
@@ -512,7 +737,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                             </div>
                             <p className="text-xs text-gray-600 truncate mb-1">
                               {pesanTerakhir &&
-                                pesanTerakhir.penulis === "admin"
+                              pesanTerakhir.penulis === "admin"
                                 ? "Anda: "
                                 : ""}
                               {pesanTerakhir
@@ -547,10 +772,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         <div
                           key={kontak.id}
                           onClick={() => loadMessageHistory(kontak.id)}
-                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
-                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                            : "hover:bg-gray-50"
-                            }`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                            isAktif
+                              ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
                           <div className="relative">
                             <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
@@ -600,10 +826,11 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                       <div
                         key={kontak.id}
                         onClick={() => loadMessageHistory(kontak.id)}
-                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${isAktif
-                          ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
-                          : "hover:bg-gray-50"
-                          }`}
+                        className={`flex items-start gap-3 p-3 cursor-pointer transition-colors ${
+                          isAktif
+                            ? "bg-yellow-50/80 border-l-4 border-l-[#FFCC00]"
+                            : "hover:bg-gray-50"
+                        }`}
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-900 text-[#FFCC00] font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
                           {kontak.avatar}
@@ -636,6 +863,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           </div>
         </div>
 
+        {/* Right Panel - Chat Area */}
         <div className="hidden md:flex flex-1 flex-col bg-[#f8f9fa] h-full overflow-hidden">
           {kontakAktif ? (
             <>
@@ -693,14 +921,19 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                         className={`flex flex-col ${dariAdmin ? "items-end" : "items-start"}`}
                       >
                         <div
-                          className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${dariAdmin
-                            ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
-                            : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
-                            }`}
+                          className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${
+                            dariAdmin
+                              ? "bg-[#FFCC00] text-gray-950 rounded-tr-none font-medium"
+                              : "bg-white text-gray-900 rounded-tl-none border border-gray-200 font-medium"
+                          }`}
                         >
                           <p className="leading-relaxed">{chat.teks}</p>
                           <div
-                            className={`flex items-center justify-end gap-1 mt-1 text-xs ${dariAdmin ? "text-gray-800 font-semibold" : "text-gray-400"}`}
+                            className={`flex items-center justify-end gap-1 mt-1 text-xs ${
+                              dariAdmin
+                                ? "text-gray-800 font-semibold"
+                                : "text-gray-400"
+                            }`}
                           >
                             <span>{chat.waktu}</span>
                           </div>
@@ -717,12 +950,27 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                   <div>
                     {!kontakAktif.sudahDimulai ? (
                       <div className="p-4 bg-white border-t border-gray-200 flex items-center justify-between">
-                        <p className="text-xs text-gray-500 font-medium">
-                          Tekan tombol Mulai untuk menangani chat ini.
-                        </p>
+                        <div className="flex items-center gap-2">
+                          {status !== "connected" && (
+                            <div className="flex items-center gap-1.5 text-xs text-orange-600">
+                              <RefreshCw size={12} className="animate-spin" />
+                              <span>Menghubungkan...</span>
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-500 font-medium">
+                            {status === "connected"
+                              ? "Tekan tombol Mulai untuk menangani chat ini."
+                              : "Tunggu koneksi tersambung..."}
+                          </p>
+                        </div>
                         <button
                           onClick={() => handleMulaiChat(kontakAktif.id)}
-                          className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold px-5 py-2.5 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:scale-105"
+                          disabled={status !== "connected"}
+                          className={`bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold px-5 py-2.5 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:scale-105 ${
+                            status !== "connected"
+                              ? "opacity-50 cursor-not-allowed hover:scale-100"
+                              : ""
+                          }`}
                         >
                           <Play size={16} fill="currentColor" />
                           <span>Mulai Chat</span>
