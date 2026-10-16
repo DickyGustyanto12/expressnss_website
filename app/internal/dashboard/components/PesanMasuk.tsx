@@ -12,11 +12,11 @@ import {
   Play,
   Lock,
   Bell,
+  AlertCircle,
   RefreshCw,
   Wifi,
   WifiOff,
   X,
-  AlertCircle, // PERBAIKAN: Ditambahkan karena digunakan di connectionToast
 } from "lucide-react";
 import { useLiveChatSocket } from "@/app/hooks/use-live-chat-socket";
 import { useAdminNotification } from "@/app/hooks/use-live-admin-notifications";
@@ -70,7 +70,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
   const listenersAttachedRef = useRef(false);
   const pendingClaimIdRef = useRef<number | null>(null);
 
-  // PERBAIKAN: Hanya ambil unreadCount, karena notifikasi sudah otomatis aktif di hook
   const { unreadCount: globalUnreadCount } = useAdminNotification(adminId);
   const { showSuccess, showError } = useGlobalNotification();
 
@@ -85,8 +84,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [daftarPesan, kontakAktifId]);
-
-  // PERBAIKAN: useEffect auto-prompt notifikasi DIHAPUS
 
   const loadConversations = useCallback(async () => {
     setIsLoading(true);
@@ -471,6 +468,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         clientMessageId,
         message: inputPesan,
         senderType: "admin",
+        senderAdminId: adminId,
       },
       (response: any) => {
         if (!response.success) {
@@ -504,8 +502,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
       }
     });
   };
-
-  // PERBAIKAN: Fungsi handleEnableNotification DIHAPUS
 
   const handleReload = () => {
     hasLoadedRef.current = false;
@@ -572,18 +568,17 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
 
       <style>{`
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translate(-50%, 100px);
-          }
-          to {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
+          from { opacity: 0; transform: translate(-50%, 100px); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes popOnce {
+          0%   { transform: scale(1); }
+          40%  { transform: scale(1.12); }
+          100% { transform: scale(1); }
         }
       `}</style>
 
-      {/* Header */}
+      {/* ===== Header (SEMUA BADGE STATIC, TANPA KEDELIP) ===== */}
       <div className="bg-white px-5 py-3 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00] shrink-0">
         <div className="flex items-center justify-between">
           <div>
@@ -596,7 +591,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Socket Status */}
+            {/* Status socket — static */}
             <div
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold ${
                 status === "connected"
@@ -609,18 +604,22 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
               ) : (
                 <WifiOff size={12} />
               )}
-              {status === "connected" ? "Live" : "Connecting..."}
+              {status === "connected" ? "Live" : "Menghubungkan..."}
             </div>
 
-            {/* Badge Unread */}
+            {/* Badge pesan baru — static, pop sekali saat angka berubah */}
             {globalUnreadCount > 0 && (
-              <div className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-pulse shadow-lg">
+              <div
+                key={globalUnreadCount}
+                className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md"
+                style={{ animation: "popOnce 0.25s ease-out" }}
+              >
                 <Bell size={14} />
                 <span>{globalUnreadCount} pesan baru</span>
               </div>
             )}
 
-            {/* PERBAIKAN: Notifikasi selalu aktif, tidak ada tombol disable */}
+            {/* Notifikasi aktif — static */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200">
               <Bell size={14} />
               <span>Notifikasi Aktif</span>
@@ -629,7 +628,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* ===== Main Content ===== */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex-1 min-h-0 flex">
         <div className="w-full md:w-5/12 lg:w-4/12 border-r border-gray-200 flex flex-col bg-white h-full overflow-hidden">
           <div className="grid grid-cols-2 bg-gray-100 p-1.5 border-b border-gray-200 gap-1 shrink-0">
@@ -863,7 +862,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           </div>
         </div>
 
-        {/* Right Panel - Chat Area */}
+        {/* ===== Panel Chat Kanan ===== */}
         <div className="hidden md:flex flex-1 flex-col bg-[#f8f9fa] h-full overflow-hidden">
           {kontakAktif ? (
             <>
@@ -918,7 +917,9 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                     return (
                       <div
                         key={chat.client_message_id || chat.id}
-                        className={`flex flex-col ${dariAdmin ? "items-end" : "items-start"}`}
+                        className={`flex flex-col ${
+                          dariAdmin ? "items-end" : "items-start"
+                        }`}
                       >
                         <div
                           className={`max-w-[75%] md:max-w-[65%] rounded-lg px-4 py-3 shadow-xs text-sm relative break-words whitespace-pre-wrap ${

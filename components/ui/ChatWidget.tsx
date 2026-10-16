@@ -44,6 +44,7 @@ const ChatWidget = ({
   const [chatMode, setChatMode] = useState<ChatMode>("form");
   const [nama, setNama] = useState("");
   const [nomorHp, setNomorHp] = useState("");
+  const [errorNomor, setErrorNomor] = useState<string | null>(null);
   const [pesanInput, setPesanInput] = useState("");
   const [daftarPesan, setDaftarPesan] = useState<PesanChat[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -68,20 +69,20 @@ const ChatWidget = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ PERBAIKAN: Panggil hook DULU, baru dapat 'status'
+  // ✅ Hook dipanggil DULU agar 'status' tersedia sebelum dipakai ref
   const { socket, status } = useLiveChatSocket(
     chatMode === "live" ? token : null,
     chatMode === "live" ? conversationId : null,
     false,
   );
 
-  // ✅ PERBAIKAN: Deklarasi statusRef SETELAH 'status' ada
+  // ✅ Ref untuk membaca status terbaru di dalam timeout (anti stale closure)
   const statusRef = useRef(status);
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
-  // ====== Load AI Settings ======
+  // ====== Load pengaturan AI ======
   useEffect(() => {
     const fetchAiSettings = async () => {
       try {
@@ -110,7 +111,7 @@ const ChatWidget = ({
     fetchAiSettings();
   }, []);
 
-  // ====== Sapaan awal saat masuk mode AI ======
+  // ====== Sapaan awal mode AI ======
   useEffect(() => {
     if (
       bukaChat &&
@@ -132,7 +133,7 @@ const ChatWidget = ({
     }
   }, [bukaChat, chatMode, isLoadingSettings, nama]);
 
-  // ====== Timeout koneksi (pakai statusRef agar tidak stale) ======
+  // ====== Timeout koneksi live chat (pakai statusRef) ======
   useEffect(() => {
     if (chatMode !== "live" || !token || !conversationId) return;
 
@@ -153,7 +154,7 @@ const ChatWidget = ({
     };
   }, [chatMode, token, conversationId]);
 
-  // ====== Saat socket connected → batalkan timeout & tampilkan sambutan ======
+  // ====== Socket connected → batalkan timeout & tampilkan sambutan ======
   useEffect(() => {
     if (chatMode === "live" && status === "connected") {
       if (connectionTimeoutRef.current) {
@@ -178,7 +179,7 @@ const ChatWidget = ({
     }
   }, [status, chatMode, isConnectingLive, nama]);
 
-  // ====== Listen pesan masuk dari admin ======
+  // ====== Listener pesan masuk saat live ======
   useEffect(() => {
     if (!socket || chatMode !== "live") return;
 
@@ -233,11 +234,36 @@ const ChatWidget = ({
   const dapatkanWaktuSekarang = () =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // ====== Submit form awal (buat conversation) ======
+  // =====================================================
+  // ✅ VALIDASI NOMOR WHATSAPP STANDAR INDONESIA
+  // =====================================================
+  const handleNomorHpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const hanyaAngka = e.target.value.replace(/\D/g, ""); // buang non-digit
+    setNomorHp(hanyaAngka.slice(0, 13)); // maksimal 13 digit
+    if (errorNomor) setErrorNomor(null);
+  };
+
+  const validasiNomorHp = (nomor: string): string | null => {
+    if (!nomor) return "Nomor WhatsApp wajib diisi.";
+    if (!nomor.startsWith("08"))
+      return "Nomor harus diawali 08. Contoh: 08123456789.";
+    if (nomor.length < 10 || nomor.length > 13)
+      return `Nomor harus 10-13 digit. Sekarang: ${nomor.length} digit.`;
+    return null;
+  };
+
+  // ====== Submit form awal ======
   const handleMulaiChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nama.trim() || !nomorHp.trim()) {
-      alert("Harap lengkapi nama dan nomor WhatsApp Anda.");
+
+    if (!nama.trim()) {
+      alert("Harap lengkapi nama Anda.");
+      return;
+    }
+
+    const errNomor = validasiNomorHp(nomorHp);
+    if (errNomor) {
+      setErrorNomor(errNomor);
       return;
     }
 
@@ -374,7 +400,7 @@ const ChatWidget = ({
     }
   };
 
-  // ====== Mulai live chat dengan admin ======
+  // ====== Mulai live chat ======
   const handleMulaiLiveChat = async () => {
     if (!conversationId || !token) {
       alert("Sesi chat tidak valid. Silakan mulai ulang.");
@@ -444,6 +470,7 @@ const ChatWidget = ({
     setChatMode("form");
     setNama("");
     setNomorHp("");
+    setErrorNomor(null);
     setPesanInput("");
     setDaftarPesan([]);
     setConversationId(null);
@@ -487,6 +514,7 @@ const ChatWidget = ({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-[90vw] sm:w-[380px] max-w-[400px] bg-white rounded-sm shadow-2xl overflow-hidden border-2 border-[#FFCC00] mb-3 flex flex-col h-[550px] max-h-[85vh]"
           >
+            {/* ===== Header ===== */}
             <div className="bg-[#FFCC00] text-black px-3.5 py-3 flex items-center justify-between shadow-sm border-b border-yellow-400 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
@@ -539,6 +567,7 @@ const ChatWidget = ({
             </div>
 
             <div className="flex flex-col flex-1 bg-slate-50 overflow-hidden">
+              {/* ===== MODE FORM ===== */}
               {chatMode === "form" && (
                 <div className="flex-1 flex flex-col">
                   <div className="flex-1 p-6 flex flex-col items-center justify-center text-center">
@@ -571,25 +600,57 @@ const ChatWidget = ({
                           className="w-full pl-10 pr-3 py-2.5 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
                         />
                       </div>
-                      <div className="relative">
-                        <Phone
-                          size={16}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                          type="tel"
-                          required
-                          value={nomorHp}
-                          onChange={(e) => setNomorHp(e.target.value)}
-                          placeholder="Nomor WhatsApp (contoh: 08123456789)"
-                          className="w-full pl-10 pr-3 py-2.5 rounded-sm border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400"
-                        />
+
+                      {/* ✅ INPUT NOMOR WHATSAPP TERVERIDIKASI */}
+                      <div>
+                        <div className="relative">
+                          <Phone
+                            size={16}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={13}
+                            required
+                            value={nomorHp}
+                            onChange={handleNomorHpChange}
+                            placeholder="Contoh: 08123456789"
+                            className={`w-full pl-10 pr-14 py-2.5 rounded-sm border text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFCC00] bg-white placeholder:text-gray-400 transition-colors ${
+                              errorNomor
+                                ? "border-red-400 ring-1 ring-red-300"
+                                : "border-gray-300"
+                            }`}
+                          />
+                          <span
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold ${
+                              nomorHp.length >= 10 && nomorHp.length <= 13
+                                ? "text-green-600"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {nomorHp.length}/13
+                          </span>
+                        </div>
+                        {errorNomor && (
+                          <p className="text-[11px] text-red-600 text-left flex items-center gap-1 mt-1">
+                            <AlertCircle size={12} className="shrink-0" />
+                            {errorNomor}
+                          </p>
+                        )}
                       </div>
+
                       <button
                         type="submit"
-                        className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                        disabled={isSubmitting}
+                        className="w-full bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold py-2.5 px-4 rounded-sm text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        <Send size={16} /> Mulai Chat
+                        {isSubmitting ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                        {isSubmitting ? "Memproses..." : "Mulai Chat"}
                       </button>
                     </form>
 
@@ -600,6 +661,7 @@ const ChatWidget = ({
                 </div>
               )}
 
+              {/* ===== MODE AI ===== */}
               {chatMode === "ai" && (
                 <>
                   <div className="flex-1 p-3 overflow-y-auto space-y-3">
@@ -655,11 +717,22 @@ const ChatWidget = ({
                       </div>
                     ))}
 
+                    {/* ✅ LOADING TANPA TEKS: typing dots ala WhatsApp */}
                     {isAiThinking && (
                       <div className="flex items-start">
-                        <div className="bg-white border border-gray-200 rounded-sm rounded-bl-none px-3 py-2 text-xs text-gray-500 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" /> Sedang
-                          mencari jawaban...
+                        <div className="bg-white border border-gray-200 rounded-sm rounded-bl-none px-3.5 py-3 shadow-sm flex items-center gap-1">
+                          <span
+                            className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "0ms" }}
+                          />
+                          <span
+                            className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "150ms" }}
+                          />
+                          <span
+                            className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "300ms" }}
+                          />
                         </div>
                       </div>
                     )}
@@ -708,6 +781,7 @@ const ChatWidget = ({
                 </>
               )}
 
+              {/* ===== MODE LIVE ===== */}
               {chatMode === "live" && (
                 <>
                   <div className="px-3 py-1.5 bg-yellow-100 border-b border-yellow-200 flex items-center justify-between text-[11px] text-gray-800 shrink-0">
@@ -836,6 +910,7 @@ const ChatWidget = ({
         )}
       </AnimatePresence>
 
+      {/* ===== Tombol floating ===== */}
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
