@@ -21,19 +21,19 @@ export const useGlobalNotification = () => {
   }
 
   const showSuccess = (message: string) => {
-    context.addToast("System", message, "success");
+    context.addToast("System", message, 0, "success");
   };
 
   const showError = (message: string) => {
-    context.addToast("System", message, "error");
+    context.addToast("System", message, 0, "error");
   };
 
   const showWarning = (message: string) => {
-    context.addToast("System", message, "warning");
+    context.addToast("System", message, 0, "warning");
   };
 
   const showMessage = (customerName: string, message: string) => {
-    context.addToast(customerName, message, "message");
+    context.addToast(customerName, message, 0, "message");
   };
 
   return {

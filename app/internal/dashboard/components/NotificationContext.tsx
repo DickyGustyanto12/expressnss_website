@@ -9,6 +9,14 @@ import React, {
   ReactNode,
 } from "react";
 import { useLiveChatSocket } from "@/app/hooks/use-live-chat-socket";
+import {
+  dengarKlikNotifikasi,
+  halamanTidakDilihat,
+  putarSuaraNotifikasi,
+  siapkanNotifikasi,
+  tampilkanNotifikasiBrowser,
+  tandaiJudulPesanBaru,
+} from "@/app/hooks/chat-notification";
 import { X, MessageSquare } from "lucide-react";
 
 interface ToastNotif {
@@ -32,6 +40,11 @@ interface NotificationContextType {
   ) => void;
   removeToast: (id: number) => void;
   clearToasts: () => void;
+  resetUnreadCount: () => void;
+  // Percakapan yang harus dibuka setelah notifikasi diklik
+  targetConversationId: number | null;
+  openConversation: (conversationId: number) => void;
+  clearTargetConversation: () => void;
 }
 
 export const NotificationContext = createContext<
@@ -56,6 +69,10 @@ export const NotificationProvider = ({
   adminId,
 }: NotificationProviderProps) => {
   const [toasts, setToasts] = useState<ToastNotif[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [targetConversationId, setTargetConversationId] = useState<
+    number | null
+  >(null);
   const { socket, status } = useLiveChatSocket(null, null, true, adminId);
 
   const addToast = useCallback(
@@ -95,6 +112,52 @@ export const NotificationProvider = ({
     setToasts([]);
   }, []);
 
+  const resetUnreadCount = useCallback(() => {
+    setUnreadCount(0);
+  }, []);
+
+  const openConversation = useCallback((conversationId: number) => {
+    if (!conversationId) return;
+    setTargetConversationId(conversationId);
+  }, []);
+
+  const clearTargetConversation = useCallback(() => {
+    setTargetConversationId(null);
+  }, []);
+
+  const handleToastClick = (toast: ToastNotif) => {
+    if (toast.type === "message" && toast.conversationId) {
+      openConversation(toast.conversationId);
+    }
+    removeToast(toast.id);
+  };
+
+  // Siapkan notifikasi OS (tetap muncul saat browser di-minimize / tab lain)
+  useEffect(() => {
+    siapkanNotifikasi();
+
+    // Klik notifikasi OS → service worker memfokuskan tab ini
+    const berhenti = dengarKlikNotifikasi((data) => {
+      if (data.conversationId) openConversation(data.conversationId);
+    });
+
+    // Tab dashboard dibuka dari notifikasi (?percakapan=ID)
+    const params = new URLSearchParams(window.location.search);
+    const dariUrl = Number(params.get("percakapan"));
+    if (dariUrl) {
+      openConversation(dariUrl);
+      params.delete("percakapan");
+      const sisa = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (sisa ? `?${sisa}` : ""),
+      );
+    }
+
+    return berhenti;
+  }, [openConversation]);
+
   // Listen SEMUA pesan dari customer
   useEffect(() => {
     if (!socket || status !== "connected") {
@@ -115,6 +178,23 @@ export const NotificationProvider = ({
           `🔔 Menampilkan notifikasi: ${customerName} - ${data.message}`,
         );
         addToast(customerName, data.message, conversationId, "message");
+        setUnreadCount((prev) => prev + 1);
+        putarSuaraNotifikasi();
+
+        if (halamanTidakDilihat()) {
+          tandaiJudulPesanBaru();
+          tampilkanNotifikasiBrowser({
+            judul: `Pesan Baru dari ${customerName}`,
+            isi: data.message,
+            tag: `chat-${conversationId}`,
+            data: {
+              path: "/internal/dashboard",
+              url: `/internal/dashboard?percakapan=${conversationId}`,
+              conversationId,
+            },
+            onClick: () => openConversation(conversationId),
+          });
+        }
       }
     };
 
@@ -123,11 +203,21 @@ export const NotificationProvider = ({
     return () => {
       socket.off("message:new", handleMessageNew);
     };
-  }, [socket, status, addToast]);
+  }, [socket, status, addToast, openConversation]);
 
   return (
     <NotificationContext.Provider
-      value={{ toasts, unreadCount: 0, addToast, removeToast, clearToasts }}
+      value={{
+        toasts,
+        unreadCount,
+        addToast,
+        removeToast,
+        clearToasts,
+        resetUnreadCount,
+        targetConversationId,
+        openConversation,
+        clearTargetConversation,
+      }}
     >
       {children}
 
@@ -136,6 +226,7 @@ export const NotificationProvider = ({
           {toasts.map((toast) => (
             <div
               key={toast.id}
+              onClick={() => handleToastClick(toast)}
               className="pointer-events-auto bg-white border-l-4 border-l-[#FFCC00] rounded-lg shadow-2xl p-4 flex items-start gap-3 cursor-pointer hover:shadow-xl transition-all"
               style={{ animation: "slideInRight 0.3s ease-out" }}
             >
@@ -149,7 +240,10 @@ export const NotificationProvider = ({
                     {toast.customerName}
                   </h4>
                   <button
-                    onClick={() => removeToast(toast.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeToast(toast.id);
+                    }}
                     className="text-gray-400 hover:text-gray-600 ml-2"
                   >
                     <X size={14} />

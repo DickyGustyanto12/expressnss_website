@@ -16,6 +16,15 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useLiveChatSocket } from "../../app/hooks/use-live-chat-socket";
+import {
+  dengarKlikNotifikasi,
+  halamanTidakDilihat,
+  mintaIzinNotifikasi,
+  putarSuaraNotifikasi,
+  siapkanNotifikasi,
+  tampilkanNotifikasiBrowser,
+  tandaiJudulPesanBaru,
+} from "../../app/hooks/chat-notification";
 
 interface PesanChat {
   id: number;
@@ -81,6 +90,20 @@ const ChatWidget = ({
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  // Ref status widget terbuka/tertutup untuk dibaca di listener socket
+  const bukaChatRef = useRef(bukaChat);
+  useEffect(() => {
+    bukaChatRef.current = bukaChat;
+  }, [bukaChat]);
+
+  // Notifikasi OS untuk customer: siapkan service worker saat live chat,
+  // klik notifikasi → fokus ke tab ini & buka widget chat
+  useEffect(() => {
+    if (chatMode !== "live") return;
+    siapkanNotifikasi();
+    return dengarKlikNotifikasi(() => setBukaChat(true));
+  }, [chatMode, setBukaChat]);
 
   // ====== Load pengaturan AI ======
   useEffect(() => {
@@ -202,6 +225,24 @@ const ChatWidget = ({
           if (exists) return prev;
           return [...prev, pesanBaruAdmin];
         });
+
+        // Notifikasi balasan CS: suara + notifikasi browser jika
+        // halaman di-minimize / tidak fokus / widget chat tertutup
+        putarSuaraNotifikasi();
+        const widgetTidakTerlihat = !bukaChatRef.current;
+        if (halamanTidakDilihat() || widgetTidakTerlihat) {
+          tandaiJudulPesanBaru();
+          tampilkanNotifikasiBrowser({
+            judul: "Balasan dari Customer Service NSS Express",
+            isi: data.message,
+            tag: `chat-customer-${conversationId}`,
+            data: {
+              path: window.location.pathname,
+              url: window.location.pathname,
+            },
+            onClick: () => setBukaChat(true),
+          });
+        }
       }
     };
 
@@ -221,7 +262,7 @@ const ChatWidget = ({
       socket.off("message:new", handleMessageNew);
       socket.off("conversation:updated", handleConversationUpdated);
     };
-  }, [socket, chatMode, conversationId]);
+  }, [socket, chatMode, conversationId, setBukaChat]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -268,6 +309,8 @@ const ChatWidget = ({
     }
 
     setIsSubmitting(true);
+    // Minta izin notifikasi saat customer mulai chat (perlu aksi pengguna)
+    mintaIzinNotifikasi();
 
     try {
       const response = await fetch("/api/live-chat/start", {
@@ -349,12 +392,19 @@ const ChatWidget = ({
           chatHistory: chatHistoryForApi,
           nama,
           nomorHp,
+          conversationId,
+          token,
         }),
       });
 
       const data = await res.json();
 
-      if (res.ok && data.reply) {
+      // Limit AI sesi tercapai → langsung tawarkan CS manusia
+      if (data.limitTercapai) {
+        setShowHumanButton(true);
+      }
+
+      if ((res.ok || data.sesiTidakValid) && data.reply) {
         const aiMsg: PesanChat = {
           id: Date.now() + 1,
           pengirim: "ai",
@@ -409,6 +459,7 @@ const ChatWidget = ({
 
     setIsSubmitting(true);
     setConnectionError(null);
+    mintaIzinNotifikasi();
 
     try {
       setDaftarPesan([]);
@@ -486,18 +537,15 @@ const ChatWidget = ({
     localStorage.removeItem("live_chat_nomor_hp");
   };
 
+  // Kembali ke AI tetap memakai sesi yang sama (limit token AI dihitung per sesi)
   const handleKembaliKeAI = () => {
     setChatMode("ai");
     setDaftarPesan([]);
-    setConversationId(null);
-    setToken(null);
     setIsClosed(false);
     setUserMessageCount(0);
     setShowHumanButton(false);
     setIsConnectingLive(false);
     setConnectionError(null);
-    localStorage.removeItem("live_chat_token");
-    localStorage.removeItem("live_chat_conversation_id");
   };
 
   return (

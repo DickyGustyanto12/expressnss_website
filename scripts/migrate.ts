@@ -47,6 +47,9 @@ const runMigrations = async () => {
         if (error.code === "ER_TABLE_EXISTS_ERROR" || error.errno === 1050) {
           console.log(`⏭️  Diskip: ${file} (Tabel sudah ada)`);
           skipCount++;
+        } else if (error.code === "ER_DUP_FIELDNAME" || error.errno === 1060) {
+          console.log(`⏭️  Diskip: ${file} (Kolom sudah ada)`);
+          skipCount++;
         } else if (error.code === "ER_DUP_ENTRY" || error.errno === 1062) {
           console.log(`⏭️  Diskip: ${file} (Data/Index sudah ada)`);
           skipCount++;

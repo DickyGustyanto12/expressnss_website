@@ -1,0 +1,33 @@
+# Dependencies & hasil build (dibuat ulang di dalam image)
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Rahasia — JANGAN masuk image. Env diberikan saat container dijalankan.
+.env
+.env.*
+!.env.example
+
+# Script lokal berisi kredensial
+scripts/update-password.js
+
+# Git, editor, OS, log
+.git
+.gitignore
+.vscode
+.idea
+.claude
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# File Docker sendiri
+Dockerfile
+.dockerignore
+docker-compose*.yml
+DEPLOY.md

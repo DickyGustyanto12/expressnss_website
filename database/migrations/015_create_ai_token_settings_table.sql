@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS `ai_token_settings` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `aktif` TINYINT(1) NOT NULL DEFAULT 1,
+  `mode` ENUM('rupiah', 'token') NOT NULL DEFAULT 'rupiah',
+  `limit_rupiah` DECIMAL(12, 2) NOT NULL DEFAULT 2000.00,
+  `limit_token` INT NOT NULL DEFAULT 500000,
+  `harga_input_usd` DECIMAL(10, 4) NOT NULL DEFAULT 0.1000 COMMENT 'USD per 1 juta token input',
+  `harga_output_usd` DECIMAL(10, 4) NOT NULL DEFAULT 0.4000 COMMENT 'USD per 1 juta token output',
+  `kurs_usd` DECIMAL(12, 2) NOT NULL DEFAULT 16500.00,
+  `pesan_limit` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

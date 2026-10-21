@@ -2,6 +2,23 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
 import type { RowDataPacket } from "mysql2";
+import crypto from "crypto";
+import {
+  ambilPengaturanTokenAi,
+  catatPemakaianToken,
+  cekLimitSesi,
+} from "@/lib/internal/ai-token-limit";
+
+// Sesi chat sah = conversationId + token rahasia dari /api/live-chat/start
+async function sesiValid(conversationId: number, token: string) {
+  if (!conversationId || !token) return false;
+  const hash = crypto.createHash("sha256").update(token).digest("hex");
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id FROM live_chat_conversations WHERE id = ? AND public_token_hash = ?",
+    [conversationId, hash],
+  );
+  return rows.length > 0;
+}
 
 // =====================================================
 // CACHE MEMORY (hindari query DB setiap request)
@@ -177,9 +194,22 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message: string = body.message || "";
     const chatHistory: any[] = body.chatHistory || [];
+    const conversationId = Number(body.conversationId);
+    const token: string = body.token || "";
 
     if (!message.trim()) {
       return NextResponse.json({ error: "Pesan kosong" }, { status: 400 });
+    }
+
+    if (!(await sesiValid(conversationId, token))) {
+      return NextResponse.json(
+        {
+          reply:
+            "Maaf Kak, sesi chat tidak valid atau sudah berakhir. Silakan tutup lalu mulai chat kembali ya. 🙏",
+          sesiTidakValid: true,
+        },
+        { status: 401 },
+      );
     }
 
     // ---------- FAST PATH 1: small-talk ----------
@@ -212,6 +242,19 @@ export async function POST(req: Request) {
     }
 
     // ---------- SLOW PATH: Gemini (hanya jika benar-benar perlu) ----------
+    // Cek limit token / biaya AI sesi ini sebelum memanggil Gemini
+    const pengaturanToken = await ambilPengaturanTokenAi();
+    const statusLimit = await cekLimitSesi(conversationId, pengaturanToken);
+    if (statusLimit.tercapai) {
+      console.log(
+        `[CHAT] ⛔ Limit AI tercapai conv ${conversationId} (${statusLimit.pemakaian}/${statusLimit.limit} ${pengaturanToken.mode})`,
+      );
+      return NextResponse.json({
+        reply: pengaturanToken.pesanLimit,
+        limitTercapai: true,
+      });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn("[CHAT] GEMINI_API_KEY tidak ditemukan");
@@ -273,8 +316,28 @@ export async function POST(req: Request) {
     ]);
 
     const t2 = Date.now();
+
+    // Catat token terpakai (token "thinking" ditagih sebagai output)
+    const usage = result.response?.usageMetadata;
+    const tokenInput = Number(usage?.promptTokenCount ?? 0);
+    const tokenOutput =
+      Number(usage?.candidatesTokenCount ?? 0) +
+      Number(usage?.thoughtsTokenCount ?? 0);
+    if (tokenInput + tokenOutput > 0) {
+      try {
+        await catatPemakaianToken(
+          conversationId,
+          pengaturanToken,
+          tokenInput,
+          tokenOutput,
+        );
+      } catch (err) {
+        console.error("[CHAT] Gagal mencatat pemakaian token:", err);
+      }
+    }
+
     console.log(
-      `[GEMINI] DB/cache: ${t1 - t0}ms | Gemini API: ${t2 - t1}ms | TOTAL: ${t2 - t0}ms`,
+      `[GEMINI] DB/cache: ${t1 - t0}ms | Gemini API: ${t2 - t1}ms | TOTAL: ${t2 - t0}ms | token in/out: ${tokenInput}/${tokenOutput}`,
     );
 
     return NextResponse.json({ reply: result.response.text() });

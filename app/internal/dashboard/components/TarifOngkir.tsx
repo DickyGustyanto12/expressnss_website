@@ -10,8 +10,10 @@ import {
   X,
   Loader2,
   ChevronDown,
+  FileSpreadsheet,
 } from "lucide-react";
 import Swal from "sweetalert2";
+import ImportTarifExcel from "./ImportTarifExcel";
 
 interface TarifItem {
   id: number;
@@ -40,6 +42,7 @@ const TarifOngkir = () => {
   const [formBerat, setFormBerat] = useState("");
   const [formHarga, setFormHarga] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalImportBuka, setModalImportBuka] = useState(false);
 
   const ambilDataTarif = async () => {
     try {
@@ -242,13 +245,22 @@ const TarifOngkir = () => {
             Express.
           </p>
         </div>
-        <button
-          onClick={bukaModalTambah}
-          className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
-        >
-          <Plus size={16} />
-          <span>Tambah Tarif Baru</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModalImportBuka(true)}
+            className="bg-white hover:bg-green-50 text-green-700 border border-green-300 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+          >
+            <FileSpreadsheet size={16} />
+            <span>Import Excel</span>
+          </button>
+          <button
+            onClick={bukaModalTambah}
+            className="bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Tambah Tarif Baru</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
@@ -498,6 +510,17 @@ const TarifOngkir = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {modalImportBuka && (
+        <ImportTarifExcel
+          daftarTarif={daftarTarif}
+          onTutup={() => setModalImportBuka(false)}
+          onSelesai={() => {
+            setModalImportBuka(false);
+            ambilDataTarif();
+          }}
+        />
       )}
     </div>
   );

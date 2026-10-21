@@ -1,5 +1,7 @@
 const { createServer } = require("http");
 const { parse } = require("url");
+const fs = require("fs");
+const path = require("path");
 const next = require("next");
 const { Server } = require("socket.io");
 const mysql = require("mysql2/promise");
@@ -13,16 +15,93 @@ const handle = app.getRequestHandler();
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
+  port: Number(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "admin",
+  password: process.env.DB_PASSWORD ?? "admin",
   database: process.env.DB_NAME || "nss_express",
   waitForConnections: true,
   connectionLimit: 10,
 });
 
+// ========== FILE UPLOAD (banner, hero, info) ==========
+// Di production Next.js tidak menjamin file yang ditambahkan ke public/ setelah
+// build ikut tersaji, jadi /uploads/* dilayani langsung dari folder upload
+// (di Docker folder ini berupa volume agar tidak hilang saat container dibuat ulang).
+const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const MIME_UPLOAD = {
+  ".webp": "image/webp",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".avif": "image/avif",
+};
+
+function layaniUpload(req, res, pathname) {
+  if (!pathname.startsWith("/uploads/")) return false;
+  if (req.method !== "GET" && req.method !== "HEAD") return false;
+
+  let relatif;
+  try {
+    relatif = decodeURIComponent(pathname.slice("/uploads/".length));
+  } catch {
+    res.statusCode = 400;
+    res.end();
+    return true;
+  }
+
+  const file = path.resolve(UPLOAD_DIR, relatif);
+  const tipe = MIME_UPLOAD[path.extname(file).toLowerCase()];
+  // Tolak path di luar folder upload & tipe file selain gambar
+  if (!file.startsWith(UPLOAD_DIR + path.sep) || !tipe) {
+    res.statusCode = 404;
+    res.end("Not found");
+    return true;
+  }
+
+  fs.stat(file, (err, stat) => {
+    if (err || !stat.isFile()) {
+      res.statusCode = 404;
+      res.end("Not found");
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": tipe,
+      "Content-Length": stat.size,
+      "Cache-Control": "public, max-age=3600",
+      "X-Content-Type-Options": "nosniff",
+    });
+    if (req.method === "HEAD") return res.end();
+    fs.createReadStream(file).pipe(res);
+  });
+  return true;
+}
+
+// Jam ambil antrian admin: 08.00 – 16.59 (sama dengan lib/jam-operasional.ts)
+const JAM_BUKA = 8;
+const JAM_TUTUP = 17;
+
+// Jam saat ini di zona waktu laptop admin (fallback WIB)
+function jamDiZona(timeZone) {
+  const ambil = (tz) =>
+    Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date()),
+    );
+  try {
+    return ambil(timeZone || "Asia/Jakarta");
+  } catch {
+    return ambil("Asia/Jakarta");
+  }
+}
+
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
+    if (layaniUpload(req, res, parsedUrl.pathname || "")) return;
     handle(req, res, parsedUrl);
   });
 
@@ -125,11 +204,23 @@ app.prepare().then(() => {
     // ========== ADMIN CLAIM CHAT ==========
     socket.on("conversation:claim", async (data, callback) => {
       try {
-        const { conversationId, adminId } = data;
+        const { conversationId, adminId, timeZone } = data;
+
+        const jam = jamDiZona(timeZone);
+        if (jam < JAM_BUKA || jam >= JAM_TUTUP) {
+          callback({
+            success: false,
+            error:
+              "Antrian hanya bisa diambil pukul 08.00 – 16.59. Silakan ambil lagi besok mulai pukul 08.00.",
+          });
+          return;
+        }
 
         await pool.query(
-          `UPDATE live_chat_conversations 
-           SET status = 'assigned', assigned_admin_id = ? WHERE id = ?`,
+          `UPDATE live_chat_conversations
+           SET status = 'assigned', assigned_admin_id = ?,
+               assigned_at = COALESCE(assigned_at, NOW())
+           WHERE id = ?`,
           [adminId, parseInt(conversationId)],
         );
 
@@ -155,8 +246,10 @@ app.prepare().then(() => {
         const { conversationId } = data;
 
         await pool.query(
-          `UPDATE live_chat_conversations SET status = 'closed' WHERE id = ?`,
-          [parseInt(conversationId)],
+          `UPDATE live_chat_conversations
+           SET status = 'closed', closed_at = NOW(), closed_by_admin_id = ?
+           WHERE id = ?`,
+          [socket.data.adminId || null, parseInt(conversationId)],
         );
 
         io.to("admins:live-chat").emit("conversation:updated", {
@@ -186,4 +279,19 @@ app.prepare().then(() => {
       `> Ready on http://${hostname}:${port} (Next.js + Socket.IO SATU PORT)`,
     );
   });
+
+  // ========== GRACEFUL SHUTDOWN (docker stop / Ctrl+C) ==========
+  let sedangBerhenti = false;
+  const berhenti = (sinyal) => {
+    if (sedangBerhenti) return;
+    sedangBerhenti = true;
+    console.log(`\n${sinyal} diterima, menutup server...`);
+    setTimeout(() => process.exit(0), 10_000).unref();
+    io.close();
+    httpServer.close(() => {
+      pool.end().finally(() => process.exit(0));
+    });
+  };
+  process.on("SIGTERM", () => berhenti("SIGTERM"));
+  process.on("SIGINT", () => berhenti("SIGINT"));
 });

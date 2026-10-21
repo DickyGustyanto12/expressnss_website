@@ -13,6 +13,7 @@ import {
   Loader2,
   MapPin,
   ExternalLink,
+  Gauge,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -23,6 +24,9 @@ import AiKnowledge from "./components/AiKnowledge";
 import UpdateCabang from "./components/UpdateCabang";
 import HeroBannerManager from "./components/HeroBannerManager";
 import InfoExpressManager from "./components/InfoExpressManager";
+import { useNotification } from "./components/NotificationContext";
+import TrafficDashboard from "./components/TrafficDashboard";
+import LimitTokenAi from "./components/LimitTokenAi";
 import { Newspaper } from "lucide-react";
 
 export default function Dashboard() {
@@ -38,9 +42,15 @@ export default function Dashboard() {
 
   const [tarifData, setTarifData] = useState<any[]>([]);
   const [bannerData, setBannerData] = useState<any[]>([]);
-  const [knowledgeData, setKnowledgeData] = useState<any[]>([]);
   const [cabangData, setCabangData] = useState<any[]>([]);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  const { targetConversationId } = useNotification();
+
+  // Notifikasi chat diklik → pindah ke menu Pesan Masuk
+  useEffect(() => {
+    if (targetConversationId !== null) {
+      setMenuAktif("pesan");
+    }
+  }, [targetConversationId]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -58,47 +68,37 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Preview data dashboard: dimuat saat menu dibuka, lalu diperbarui berkala
   useEffect(() => {
+    if (menuAktif !== "ringkasan") return;
+
     const fetchSummaryData = async () => {
-      setIsLoadingSummary(true);
       try {
-        const [tarifRes, bannerRes, knowledgeRes, cabangRes] =
-          await Promise.all([
-            fetch("/api/tarif-ongkir"),
-            fetch("/api/banners"),
-            fetch("/api/ai-knowledge"),
-            fetch("/api/cabang"),
-          ]);
+        const opsi = { cache: "no-store" as const };
+        const [tarifRes, bannerRes, cabangRes] = await Promise.all([
+          fetch("/api/tarif-ongkir", opsi),
+          fetch("/api/hero-banner", opsi),
+          fetch("/api/cabang", opsi),
+        ]);
 
-        if (tarifRes.ok) {
-          const data = await tarifRes.json();
-          setTarifData(data.slice(0, 10));
-        }
-
-        if (bannerRes.ok) {
-          const data = await bannerRes.json();
-          setBannerData(data.slice(0, 10));
-        }
-
-        if (knowledgeRes.ok) {
-          const data = await knowledgeRes.json();
-          setKnowledgeData(data.slice(0, 5));
-        }
-
-        if (cabangRes.ok) {
-          const data = await cabangRes.json();
-          setCabangData(data.slice(0, 10));
-        }
+        if (tarifRes.ok) setTarifData(await tarifRes.json());
+        if (bannerRes.ok) setBannerData(await bannerRes.json());
+        if (cabangRes.ok) setCabangData(await cabangRes.json());
       } catch (error) {
         console.error("Gagal memuat data ringkasan:", error);
-      } finally {
-        setIsLoadingSummary(false);
       }
     };
 
-    if (menuAktif === "ringkasan") {
-      fetchSummaryData();
-    }
+    fetchSummaryData();
+    const timer = setInterval(fetchSummaryData, 30_000);
+    const saatTerlihat = () => {
+      if (document.visibilityState === "visible") fetchSummaryData();
+    };
+    document.addEventListener("visibilitychange", saatTerlihat);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", saatTerlihat);
+    };
   }, [menuAktif]);
 
   const getInitials = (name: string) => {
@@ -146,7 +146,7 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-gray-100 text-gray-900 flex flex-col justify-between overflow-hidden">
       <div className="flex flex-1 min-h-0">
-        <aside className="w-72 bg-[#FFCC00] border-r border-yellow-400 p-5 flex flex-col justify-between hidden md:flex shadow-md shrink-0">
+        <aside className="w-72 bg-[#FFCC00] border-r border-yellow-400 p-5 flex flex-col justify-between gap-4 hidden md:flex shadow-md shrink-0 overflow-y-auto">
           <div>
             <div className="flex items-center gap-3.5 px-3 py-3.5 mb-6 border-b border-yellow-400/80 bg-white/40 backdrop-blur-xs rounded-sm shadow-xs border border-yellow-300/60">
               <div className="bg-white p-2 rounded-sm shadow-xs border border-yellow-300 flex items-center justify-center shrink-0">
@@ -263,6 +263,20 @@ export default function Dashboard() {
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
               <button
+                onClick={() => setMenuAktif("token-ai")}
+                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
+                  menuAktif === "token-ai"
+                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
+                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <Gauge size={20} className="text-gray-950" />
+                  <span>Limit Token AI</span>
+                </div>
+                <ChevronRight size={18} className="text-gray-950" />
+              </button>
+              <button
                 onClick={() => setMenuAktif("cabang")}
                 className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
                   menuAktif === "cabang"
@@ -339,57 +353,10 @@ export default function Dashboard() {
                 </button>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div
-                  onClick={() => setMenuAktif("pesan")}
-                  className="bg-white p-5 rounded-sm border border-gray-200 border-t-4 border-t-yellow-400 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md cursor-pointer flex flex-col justify-between"
-                >
-                  <div className="bg-yellow-100 w-11 h-11 rounded-sm text-yellow-700 flex items-center justify-center mb-3">
-                    <Mail size={22} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500 font-semibold mb-1">
-                      Pesan Masuk Hari Ini
-                    </div>
-                    <div className="text-3xl font-extrabold text-gray-900">
-                      12 Pesan
-                    </div>
-                  </div>
-                </div>
-                <div
-                  onClick={() => setMenuAktif("ongkir")}
-                  className="bg-white p-5 rounded-sm border border-gray-200 border-t-4 border-t-blue-500 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md cursor-pointer flex flex-col justify-between"
-                >
-                  <div className="bg-blue-100 w-11 h-11 rounded-sm text-blue-700 flex items-center justify-center mb-3">
-                    <Truck size={22} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500 font-semibold mb-1">
-                      Tarif Ongkir Terupdate
-                    </div>
-                    <div className="text-3xl font-extrabold text-gray-900">
-                      {tarifData.length} Data
-                    </div>
-                  </div>
-                </div>
-                <div
-                  onClick={() => setMenuAktif("carousel")}
-                  className="bg-white p-5 rounded-sm border border-gray-200 border-t-4 border-t-green-500 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md cursor-pointer flex flex-col justify-between"
-                >
-                  <div className="bg-green-100 w-11 h-11 rounded-sm text-green-700 flex items-center justify-center mb-3">
-                    <ImageIcon size={22} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500 font-semibold mb-1">
-                      Carousel Aktif
-                    </div>
-                    <div className="text-3xl font-extrabold text-gray-900">
-                      {bannerData.filter((b) => b.status === "aktif").length}{" "}
-                      Banner
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <TrafficDashboard
+                adminId={userData.id}
+                onBukaMenu={setMenuAktif}
+              />
 
               <div className="space-y-6">
                 {/* 1. Card Preview Cabang (dengan Kolom Link Maps) */}
@@ -419,7 +386,7 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {cabangData.length > 0 ? (
-                          cabangData.map((item, idx) => {
+                          cabangData.slice(0, 10).map((item, idx) => {
                             const linkUrl =
                               item.link_maps ||
                               `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`;
@@ -507,7 +474,7 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {tarifData.length > 0 ? (
-                          tarifData.map((item, idx) => (
+                          tarifData.slice(0, 10).map((item, idx) => (
                             <tr
                               key={item.id || idx}
                               className="hover:bg-gray-50 transition-colors"
@@ -524,7 +491,10 @@ export default function Dashboard() {
                                 </span>
                               </td>
                               <td className="px-5 py-3 text-right font-bold text-gray-900">
-                                Rp {item.harga?.toLocaleString("id-ID")}
+                                Rp{" "}
+                                {Number(item.harga_ongkir).toLocaleString(
+                                  "id-ID",
+                                )}
                               </td>
                             </tr>
                           ))
@@ -551,7 +521,7 @@ export default function Dashboard() {
                       Preview Banner Carousel
                     </h3>
                     <button
-                      onClick={() => setMenuAktif("carousel")}
+                      onClick={() => setMenuAktif("hero-banner")}
                       className="text-xs text-green-600 hover:underline font-semibold flex items-center gap-1"
                     >
                       Lihat Semua <ChevronRight size={14} />
@@ -569,7 +539,7 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {bannerData.length > 0 ? (
-                          bannerData.map((item, idx) => (
+                          bannerData.slice(0, 10).map((item, idx) => (
                             <tr
                               key={item.id || idx}
                               className="hover:bg-gray-50 transition-colors"
@@ -583,12 +553,14 @@ export default function Dashboard() {
                               <td className="px-5 py-3 text-center">
                                 <span
                                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                    item.status === "aktif"
+                                    Number(item.is_active) === 1
                                       ? "bg-green-100 text-green-800"
                                       : "bg-gray-100 text-gray-600"
                                   }`}
                                 >
-                                  {item.status}
+                                  {Number(item.is_active) === 1
+                                    ? "aktif"
+                                    : "non-aktif"}
                                 </span>
                               </td>
                             </tr>
@@ -619,6 +591,7 @@ export default function Dashboard() {
           {menuAktif === "knowledge" && (
             <AiKnowledge adminId={userData.id} adminName={userData.nama} />
           )}
+          {menuAktif === "token-ai" && <LimitTokenAi />}
           {menuAktif === "cabang" && <UpdateCabang />}
           {menuAktif === "hero-banner" && <HeroBannerManager />}
           {menuAktif === "info-express" && <InfoExpressManager />}

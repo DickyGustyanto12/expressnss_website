@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
 let globalSocket: Socket | null = null;
@@ -13,80 +13,71 @@ export function useLiveChatSocket(
 ) {
   const [status, setStatus] = useState<
     "disconnected" | "connecting" | "connected" | "error"
-  >("disconnected");
-
-  const isAdminRef = useRef(isAdmin);
-  const adminIdRef = useRef(adminId);
-  const tokenRef = useRef(token);
-  const conversationIdRef = useRef(conversationId);
-
-  useEffect(() => {
-    isAdminRef.current = isAdmin;
-    adminIdRef.current = adminId;
-    tokenRef.current = token;
-    conversationIdRef.current = conversationId;
-  }, [isAdmin, adminId, token, conversationId]);
+  >(globalSocket?.connected ? "connected" : "disconnected");
 
   useEffect(() => {
     if (!isAdmin && (!token || !conversationId)) {
       return;
     }
 
-    // Socket sudah ada & connected → pakai lagi + join room
-    if (globalSocket?.connected) {
-      setStatus("connected");
-      if (isAdminRef.current) {
-        globalSocket.emit("admins:live-chat:join");
-      } else if (conversationIdRef.current) {
-        globalSocket.emit("conversation:join", conversationIdRef.current);
-      }
-      return;
-    }
-
-    // Socket ada tapi putus → reconnect
-    if (globalSocket) {
-      globalSocket.auth = isAdmin ? { isAdmin: true, adminId } : { token };
-      globalSocket.connect();
-      return;
-    }
-
     // Buat socket baru → SATU PORT (origin yang sama dengan web)
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      (typeof window !== "undefined"
-        ? window.location.origin
-        : "http://localhost:3000");
+    if (!globalSocket) {
+      const socketUrl =
+        process.env.NEXT_PUBLIC_SOCKET_URL ||
+        (typeof window !== "undefined"
+          ? window.location.origin
+          : "http://localhost:3000");
 
-    console.log("🔌 Creating socket to:", socketUrl);
+      console.log("🔌 Creating socket to:", socketUrl);
 
-    globalSocket = io(socketUrl, {
-      transports: ["websocket", "polling"],
-      auth: isAdmin ? { isAdmin: true, adminId } : { token },
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
+      globalSocket = io(socketUrl, {
+        transports: ["websocket", "polling"],
+        auth: isAdmin ? { isAdmin: true, adminId } : { token },
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
+    }
 
-    globalSocket.on("connect", () => {
-      console.log("✅ Socket connected:", globalSocket?.id);
-      setStatus("connected");
+    const socket = globalSocket;
 
-      if (isAdminRef.current) {
-        globalSocket?.emit("admins:live-chat:join");
-      } else if (conversationIdRef.current) {
-        globalSocket?.emit("conversation:join", conversationIdRef.current);
+    const joinRoom = () => {
+      if (isAdmin) {
+        socket.emit("admins:live-chat:join");
+      } else if (conversationId) {
+        socket.emit("conversation:join", conversationId);
       }
-    });
+    };
 
-    globalSocket.on("disconnect", () => {
-      console.log("🔌 Socket disconnected");
-      setStatus("disconnected");
-    });
-
-    globalSocket.on("connect_error", (error) => {
+    // Setiap pemakai hook punya listener status sendiri,
+    // sehingga semua komponen ikut tahu saat socket tersambung
+    const handleConnect = () => {
+      setStatus("connected");
+      joinRoom();
+    };
+    const handleDisconnect = () => setStatus("disconnected");
+    const handleError = (error: Error) => {
       console.error("❌ Socket connection error:", error.message);
       setStatus("error");
-    });
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleError);
+
+    if (socket.connected) {
+      handleConnect();
+    } else {
+      setStatus("connecting");
+      socket.auth = isAdmin ? { isAdmin: true, adminId } : { token };
+      socket.connect();
+    }
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleError);
+    };
   }, [isAdmin, adminId, token, conversationId]);
 
   return { socket: globalSocket, status };

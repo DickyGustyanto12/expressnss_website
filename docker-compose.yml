@@ -1,0 +1,62 @@
+# NSS Express Website — Next.js + Socket.IO (server.js) + MySQL 8
+# Jalankan:  docker compose up -d --build
+# Semua konfigurasi dibaca dari file .env (salin dari .env.example).
+
+services:
+  app:
+    build: .
+    image: nss-express-web:latest
+    container_name: nss-express-web
+    restart: unless-stopped
+    # Hanya variabel yang dibutuhkan aplikasi (password root MySQL tidak ikut)
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Jakarta}
+      JWT_SECRET: ${JWT_SECRET:?Isi JWT_SECRET di .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-nss_express}
+      DB_USER: ${DB_USER:?Isi DB_USER di .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Isi DB_PASSWORD di .env}
+      TRACKING_API_URL: ${TRACKING_API_URL:-https://172.16.1.57/ksapisvr}
+      TRACKING_TLS_VERIFY: ${TRACKING_TLS_VERIFY:-false}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Gambar yang diupload admin tetap tersimpan walau container dibuat ulang
+      - uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    container_name: nss-express-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-nss_express}
+      MYSQL_USER: ${DB_USER:?Isi DB_USER di .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Isi DB_PASSWORD di .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Isi DB_ROOT_PASSWORD di .env}
+      TZ: ${TZ:-Asia/Jakarta}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+      # Dijalankan otomatis HANYA saat database pertama kali dibuat (volume kosong)
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Hanya bisa diakses dari server itu sendiri (untuk import data / MySQL Workbench via SSH)
+      - "127.0.0.1:${DB_HOST_PORT:-3307}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  db_data:
+  uploads:

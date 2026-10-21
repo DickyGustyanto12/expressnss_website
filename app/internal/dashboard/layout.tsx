@@ -15,14 +15,19 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const statusLogin = localStorage.getItem("isLoggedIn");
-    const storedAdminId = localStorage.getItem("adminId");
+    const storedUser = localStorage.getItem("user");
 
     if (!statusLogin) {
       router.push("/internal");
     } else {
       setSudahLogin(true);
-      if (storedAdminId) {
-        setAdminId(parseInt(storedAdminId));
+      try {
+        const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+        if (parsedUser?.id) {
+          setAdminId(Number(parsedUser.id));
+        }
+      } catch {
+        // abaikan data user yang rusak, tetap pakai default
       }
     }
   }, [router]);
