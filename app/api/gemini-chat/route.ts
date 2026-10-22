@@ -8,6 +8,7 @@ import {
   catatPemakaianToken,
   cekLimitSesi,
 } from "@/lib/internal/ai-token-limit";
+import { jawabDataRealtime } from "@/lib/internal/chatbot-realtime";
 
 // Sesi chat sah = conversationId + token rahasia dari /api/live-chat/start
 async function sesiValid(conversationId: number, token: string) {
@@ -219,6 +220,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: st });
     }
 
+    // ---------- DATA REAL TIME: ongkir & lacak paket (database / server tracking) ----------
+    try {
+      const realtime = await jawabDataRealtime(
+        message,
+        chatHistory.map((m: any) => ({
+          pengirim: m.pengirim === "user" ? "user" : "model",
+          teks: String(m.teks ?? ""),
+        })),
+      );
+      if (realtime) {
+        console.log(
+          `[CHAT] ⚡ Data real time ${realtime.jenis} (${Date.now() - t0}ms)`,
+        );
+        return NextResponse.json({ reply: realtime.reply });
+      }
+    } catch (err) {
+      console.error("[CHAT] Gagal mengambil data real time:", err);
+    }
+
     // ---------- FAST PATH 2: pesan terlalu pendek / tidak jelas ----------
     const clean = message.toLowerCase().trim();
     if (clean.length < 3 || getMeaningfulWords(clean).length === 0) {
@@ -262,7 +282,7 @@ export async function POST(req: Request) {
         reply:
           relevant.length > 0
             ? relevant[0].row.jawaban
-            : 'Maaf Kak, saya belum menemukan informasi tersebut. Silakan hubungi Customer Service manusia kami lewat tombol "Hubungkan dengan Customer Service" di bawah ya.',
+            : 'Maaf Kak, saya belum menemukan informasi tersebut. Silakan hubungi Customer Service kami lewat tombol "Hubungkan dengan Customer Service" di bawah ya.',
       });
     }
 
@@ -292,6 +312,7 @@ export async function POST(req: Request) {
       `BATASAN: ${settings.limitations}`,
       `PENGETAHUAN RELEVAN:\n${kbText}`,
       `Aturan jawab: bahasa Indonesia, ramah, sapaan "Kak", maksimal 3 kalimat.`,
+      `DILARANG menyebut angka tarif/ongkir atau status/posisi paket dari ingatanmu. Untuk ongkir minta customer menulis kota asal, kota tujuan, dan berat (contoh: "ongkir Semarang ke Klaten 2 kg"). Untuk lacak paket minta customer mengirim nomor resi. Sistem akan menjawab dengan data terbaru.`,
       `Jika pertanyaan di luar topik pengiriman/logistik atau tidak ada di pengetahuan, jawab: "Maaf Kak, kami hanya menjawab seputar Ekspedisi. Jika ada kendala dan pertanyaan silahkan ketik disini."`,
     ].join("\n");
 
