@@ -6,21 +6,40 @@ import { Search, MapPin, ExternalLink, Loader2 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import bayanganPenanda from "leaflet/dist/images/marker-shadow.png";
 import Swal from "sweetalert2";
 
+// Ikon penanda kuning NSS Express — SVG lokal (tidak bergantung server luar)
+const svgPenanda = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.4 15 41 15 41s14-15.6 14-26.1C29 7.2 22.7 1 15 1z" fill="#FFCC00" stroke="#111827" stroke-width="2"/><circle cx="15" cy="15" r="5.5" fill="#111827"/></svg>`;
+
 const penandaKuning = L.icon({
-  iconUrl:
-    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
+  iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgPenanda)}`,
+  shadowUrl: bayanganPenanda.src,
+  iconSize: [30, 42],
+  iconAnchor: [15, 41],
+  popupAnchor: [0, -36],
   tooltipAnchor: [16, -28],
   shadowSize: [41, 41],
+  shadowAnchor: [12, 41],
 });
 
 L.Marker.prototype.options.icon = penandaKuning;
+
+// Hitung ulang ukuran peta setelah animasi/tata letak selesai,
+// agar potongan peta tidak abu-abu atau bergeser
+const PenyesuaiUkuranPeta = () => {
+  const peta = useMap();
+  useEffect(() => {
+    const segarkan = () => peta.invalidateSize();
+    const timer = setTimeout(segarkan, 700);
+    window.addEventListener("resize", segarkan);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", segarkan);
+    };
+  }, [peta]);
+  return null;
+};
 
 interface TipeCabang {
   id: number;
@@ -33,7 +52,9 @@ interface TipeCabang {
 
 const PengaturTampilanPeta = ({ lat, lng }: { lat: number; lng: number }) => {
   const peta = useMap();
-  peta.setView([lat, lng], 13);
+  useEffect(() => {
+    peta.setView([lat, lng], 13);
+  }, [peta, lat, lng]);
   return null;
 };
 
@@ -215,8 +236,10 @@ const Cabang = () => {
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maxZoom={19}
                 />
+                <PenyesuaiUkuranPeta />
 
                 {cabangTerpilih && (
                   <PengaturTampilanPeta
