@@ -37,8 +37,7 @@ function daftarkanServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   registrasiSW = navigator.serviceWorker
     .register("/sw-notifikasi.js")
     .then(() => navigator.serviceWorker.ready)
-    .catch((err) => {
-      console.warn("Service worker notifikasi gagal didaftarkan:", err);
+    .catch(() => {
       return null;
     });
   return registrasiSW;
@@ -116,8 +115,8 @@ function playBeepSound() {
 
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + 0.3);
-  } catch (err) {
-    console.warn("Web Audio API gagal:", err);
+  } catch {
+    // Diabaikan (tidak ditampilkan di console browser)
   }
 }
 
@@ -170,8 +169,8 @@ export async function tampilkanNotifikasiBrowser({
     try {
       await registrasi.showNotification(judul, opsi);
       return;
-    } catch (err) {
-      console.warn("showNotification gagal, pakai fallback:", err);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     }
   }
 
@@ -183,8 +182,8 @@ export async function tampilkanNotifikasiBrowser({
       onClick?.();
       notification.close();
     };
-  } catch (err) {
-    console.warn("Gagal menampilkan notifikasi browser:", err);
+  } catch {
+    // Diabaikan (tidak ditampilkan di console browser)
   }
 }
 

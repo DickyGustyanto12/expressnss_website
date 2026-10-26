@@ -39,11 +39,9 @@ const InfoExpress = () => {
             (item: InfoCard) => item.is_active === 1,
           );
           setInfoCards(activeData);
-        } else {
-          console.error("Gagal mengambil data, status:", res.status);
         }
-      } catch (error) {
-        console.error("Gagal memuat info express:", error);
+      } catch {
+        // Diabaikan (tidak ditampilkan di console browser)
       } finally {
         setIsLoading(false);
       }

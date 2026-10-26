@@ -28,8 +28,6 @@ export function useLiveChatSocket(
           ? window.location.origin
           : "http://localhost:3000");
 
-      console.log("🔌 Creating socket to:", socketUrl);
-
       globalSocket = io(socketUrl, {
         transports: ["websocket", "polling"],
         auth: isAdmin ? { isAdmin: true, adminId } : { token },
@@ -56,10 +54,7 @@ export function useLiveChatSocket(
       joinRoom();
     };
     const handleDisconnect = () => setStatus("disconnected");
-    const handleError = (error: Error) => {
-      console.error("❌ Socket connection error:", error.message);
-      setStatus("error");
-    };
+    const handleError = () => setStatus("error");
 
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);

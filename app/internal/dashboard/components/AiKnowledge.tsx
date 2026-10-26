@@ -108,8 +108,8 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       const res = await fetch("/api/ai-knowledge");
       const result = await res.json();
       if (res.ok) setData(result);
-    } catch (error) {
-      console.error("Gagal memuat knowledge:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoading(false);
     }
@@ -135,11 +135,9 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
           quick_questions: data.quick_questions || "[]",
           instructions: data.instructions || "",
         });
-      } else {
-        console.warn("Pengaturan AI belum ada, menggunakan default");
       }
-    } catch (error) {
-      console.error("Gagal memuat pengaturan AI:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoadingSettings(false);
     }
@@ -287,8 +285,8 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
         }),
       });
       if (res.ok) loadData();
-    } catch (error) {
-      console.error("Gagal toggle status:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     }
   };
 

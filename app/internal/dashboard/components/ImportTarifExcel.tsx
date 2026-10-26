@@ -177,8 +177,7 @@ const ImportTarifExcel = ({
       setWorkbook(wb);
       setTampilkanContoh(false);
       pilihSheet(modul, wb, sheetAwal);
-    } catch (error) {
-      console.error("Gagal membaca file Excel:", error);
+    } catch {
       Swal.fire({
         title: "Gagal Membaca File",
         text: "Pastikan file berformat Excel (.xlsx / .xls) atau .csv dan tidak rusak.",

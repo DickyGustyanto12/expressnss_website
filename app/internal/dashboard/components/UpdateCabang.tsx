@@ -52,8 +52,8 @@ const UpdateCabang = () => {
       if (res.ok) {
         setData(result);
       }
-    } catch (error) {
-      console.error("Gagal memuat data cabang:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoading(false);
     }

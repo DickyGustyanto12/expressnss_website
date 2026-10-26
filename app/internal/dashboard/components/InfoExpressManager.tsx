@@ -66,8 +66,8 @@ const InfoExpressManager = () => {
         const result = await res.json();
         setData(result);
       }
-    } catch (error) {
-      console.error("Gagal memuat data:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoading(false);
     }

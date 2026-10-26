@@ -201,8 +201,8 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                   lastMessage = msgs[msgs.length - 1];
                 }
               }
-            } catch (err) {
-              console.error(`Gagal load pesan untuk conv ${item.id}:`, err);
+            } catch {
+              // Diabaikan (tidak ditampilkan di console browser)
             }
             return { ...item, lastMessage };
           }),
@@ -257,8 +257,7 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
       } else {
         setApiError(data.error || "Gagal memuat data percakapan.");
       }
-    } catch (error) {
-      console.error("Gagal memuat percakapan:", error);
+    } catch {
       setApiError("Terjadi kesalahan saat memuat data.");
     } finally {
       setIsLoading(false);
@@ -288,8 +287,8 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           })),
         );
       }
-    } catch (e) {
-      console.error("Gagal memuat template saran:", e);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     }
   }, []);
 
@@ -540,8 +539,8 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           ),
         );
       }
-    } catch (error) {
-      console.error("Error memuat riwayat:", error);
+    } catch {
+      // Diabaikan (tidak ditampilkan di console browser)
     }
   };
 
@@ -953,7 +952,9 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
               >
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isAntrianDibuka ? "bg-green-500 animate-pulse" : "bg-red-500"
+                    isAntrianDibuka
+                      ? "bg-green-500 animate-pulse"
+                      : "bg-red-500"
                   }`}
                 ></span>
                 {isAntrianDibuka

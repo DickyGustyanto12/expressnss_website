@@ -125,8 +125,8 @@ const ChatWidget = ({
             quick_questions: parsedQuestions,
           });
         }
-      } catch (error) {
-        console.error("Gagal memuat pengaturan AI:", error);
+      } catch {
+        // Diabaikan (tidak ditampilkan di console browser)
       } finally {
         setIsLoadingSettings(false);
       }
@@ -373,8 +373,8 @@ const ChatWidget = ({
             senderType: "customer",
           }),
         });
-      } catch (error) {
-        console.error("Gagal simpan pesan user ke DB:", error);
+      } catch {
+        // Diabaikan (tidak ditampilkan di console browser)
       }
     }
 
@@ -424,14 +424,14 @@ const ChatWidget = ({
                 senderType: "ai",
               }),
             });
-          } catch (error) {
-            console.error("Gagal simpan pesan AI ke DB:", error);
+          } catch {
+            // Diabaikan (tidak ditampilkan di console browser)
           }
         }
       } else {
         throw new Error("Gagal mendapatkan jawaban AI");
       }
-    } catch (error) {
+    } catch {
       setDaftarPesan((prev) => [
         ...prev,
         {

@@ -39,8 +39,7 @@ const Banner = ({ onBukaChat }: BannerProps) => {
           setSlides(activeBanners);
           setIsLoading(false);
         }
-      } catch (error) {
-        console.error("Gagal memuat hero banner:", error);
+      } catch {
         setIsLoading(false);
       }
     };

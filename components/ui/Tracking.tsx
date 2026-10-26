@@ -61,8 +61,7 @@ const Tracking = () => {
           "Nomor resi tidak ditemukan. Silakan periksa kembali nomor resi Anda.",
         );
       }
-    } catch (error) {
-      console.error("Error fetching tracking:", error);
+    } catch {
       setHasilTracking(null);
       setErrorMsg(
         "Terjadi kesalahan koneksi ke server pelacakan. Pastikan jaringan terhubung.",

@@ -152,7 +152,7 @@ function smallTalk(message: string): string | null {
     "p",
     "p?",
     "p!",
-    "test",
+    "test", 
     "testing",
     "halo",
     "hallo",

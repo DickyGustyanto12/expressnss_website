@@ -62,8 +62,8 @@ export default function Dashboard() {
           nama: parsedUser.nama || "Administrator",
           email: parsedUser.email || "admin@nssexpress.com",
         });
-      } catch (error) {
-        console.error("Gagal membaca data user:", error);
+      } catch {
+        // Diabaikan (tidak ditampilkan di console browser)
       }
     }
   }, []);
@@ -84,8 +84,8 @@ export default function Dashboard() {
         if (tarifRes.ok) setTarifData(await tarifRes.json());
         if (bannerRes.ok) setBannerData(await bannerRes.json());
         if (cabangRes.ok) setCabangData(await cabangRes.json());
-      } catch (error) {
-        console.error("Gagal memuat data ringkasan:", error);
+      } catch {
+        // Diabaikan (tidak ditampilkan di console browser)
       }
     };
 

@@ -161,22 +161,14 @@ export const NotificationProvider = ({
   // Listen SEMUA pesan dari customer
   useEffect(() => {
     if (!socket || status !== "connected") {
-      console.log("⏳ Socket belum connected:", { socket: !!socket, status });
       return;
     }
 
-    console.log("✅ Socket connected, listening for messages...");
-
     const handleMessageNew = (data: any) => {
-      console.log("📩 Pesan baru diterima:", data);
-
       if (data.senderType === "customer") {
         const customerName = data.customerName || "Customer";
         const conversationId = data.conversationId;
 
-        console.log(
-          `🔔 Menampilkan notifikasi: ${customerName} - ${data.message}`,
-        );
         addToast(customerName, data.message, conversationId, "message");
         setUnreadCount((prev) => prev + 1);
         putarSuaraNotifikasi();

@@ -74,8 +74,7 @@ const Cabang = () => {
           const data = await res.json();
           setDaftarCabang(data);
         }
-      } catch (error) {
-        console.error("Gagal memuat data cabang:", error);
+      } catch {
         Swal.fire({
           icon: "error",
           title: "Gagal Memuat Data",

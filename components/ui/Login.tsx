@@ -61,8 +61,7 @@ const Login = () => {
           background: "#ffffff",
         });
       }
-    } catch (error) {
-      console.error("Terjadi kesalahan:", error);
+    } catch {
       Swal.fire({
         title: "Kesalahan Sistem",
         text: "Tidak dapat terhubung ke server. Periksa koneksi Anda.",
