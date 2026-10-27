@@ -1,59 +1,110 @@
 "use client";
 
-import { Search, X, Clock, User, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Search,
+  X,
+  Clock,
+  User,
+  Loader2,
+  CheckCircle2,
+  ShieldCheck,
+  AlertCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReCaptcha from "@/components/ui/ReCaptcha";
 
 const Tracking = () => {
   const [kataKunci, setKataKunci] = useState("");
+
+  // ====== State modal hasil tracking ======
   const [modalBuka, setModalBuka] = useState(false);
   const [hasilTracking, setHasilTracking] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isModalLoading, setIsModalLoading] = useState(false);
 
-  const handleCari = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const keyword = kataKunci.trim();
-    if (!keyword) return;
+  // ====== State modal captcha ======
+  const [showCaptchaModal, setShowCaptchaModal] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [captchaError, setCaptchaError] = useState("");
+  // ✅ Key untuk me-remount widget captcha (pengganti reset() yang crash)
+  const [captchaKey, setCaptchaKey] = useState(0);
 
-    setModalBuka(true);
-    setIsModalLoading(true);
+  // ====== STEP 1: Klik tombol Cari → buka popup captcha ======
+  const handleCari = (e: React.FormEvent) => {
+    e.preventDefault();
+    const keyword = kataKunci.trim();
+
     setHasilTracking(null);
     setErrorMsg("");
+
+    if (!keyword) {
+      setErrorMsg("Masukkan nomor resi terlebih dahulu.");
+      setModalBuka(true);
+      setIsModalLoading(false);
+      return;
+    }
+
+    setCaptchaError("");
+    setIsVerifying(false);
+    setShowCaptchaModal(true);
+  };
+
+  // ====== STEP 2: Captcha dicentang → fetch otomatis ======
+  const handleCaptchaVerified = async (token: string | null) => {
+    // Token kedaluwarsa / dihapus Google
+    if (!token) {
+      setCaptchaError("Verifikasi kedaluwarsa. Silakan centang ulang.");
+      return;
+    }
+    // Cegah double-submit jika callback terpanggil dua kali
+    if (isVerifying) return;
+
+    setIsVerifying(true);
+    setCaptchaError("");
 
     try {
       const response = await fetch("/api/tracking", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ keyword }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keyword: kataKunci.trim(),
+          recaptchaToken: token,
+        }),
       });
 
+      if (response.status === 403) {
+        throw new Error("Verifikasi reCAPTCHA gagal. Silakan coba lagi.");
+      }
+
       if (!response.ok) {
-        throw new Error("Gagal mengambil data dari server");
+        throw new Error(
+          "Server pelacakan bermasalah. Silakan coba beberapa saat lagi.",
+        );
       }
 
       const data = await response.json();
 
+      // ====== STEP 3: Tutup popup captcha → buka modal hasil ======
+      setShowCaptchaModal(false);
+      setIsVerifying(false);
+      setCaptchaKey((k) => k + 1); // widget segar untuk pencarian berikutnya
+
+      setModalBuka(true);
+      setIsModalLoading(false);
+
       if (data && data.Detail && data.Detail.length > 0) {
-        const formattedData = {
-          awb: keyword,
+        setHasilTracking({
+          awb: kataKunci.trim(),
           status: data.Detail[0].Keterangan || "Dalam Proses",
-          pengirim: {
-            nama: "NSS Express Center",
-          },
-          penerima: {
-            nama: data.Detail[0].Nama || "-",
-          },
+          pengirim: { nama: "NSS Express Center" },
+          penerima: { nama: data.Detail[0].Nama || "-" },
           riwayat: data.Detail.map((item: any) => ({
             tanggal: item.Tanggal || "",
             jam: item.Jam || "",
             keterangan: item.Keterangan || "",
           })),
-        };
-
-        setHasilTracking(formattedData);
+        });
         setErrorMsg("");
       } else {
         setHasilTracking(null);
@@ -61,14 +112,21 @@ const Tracking = () => {
           "Nomor resi tidak ditemukan. Silakan periksa kembali nomor resi Anda.",
         );
       }
-    } catch {
-      setHasilTracking(null);
-      setErrorMsg(
-        "Terjadi kesalahan koneksi ke server pelacakan. Pastikan jaringan terhubung.",
+    } catch (err: any) {
+      setIsVerifying(false);
+      setCaptchaError(
+        err?.message || "Gagal memverifikasi. Silakan coba lagi.",
       );
-    } finally {
-      setIsModalLoading(false);
+      // ✅ Token lama sudah terpakai/rusak → render widget BARU (aman, tanpa reset())
+      setCaptchaKey((k) => k + 1);
     }
+  };
+
+  const handleTutupCaptcha = () => {
+    setShowCaptchaModal(false);
+    setIsVerifying(false);
+    setCaptchaError("");
+    setCaptchaKey((k) => k + 1);
   };
 
   return (
@@ -104,6 +162,80 @@ const Tracking = () => {
         </div>
       </form>
 
+      {/* ===================================================== */}
+      {/* POPUP CAPTCHA                                          */}
+      {/* ===================================================== */}
+      <AnimatePresence>
+        {showCaptchaModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-xs"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6 relative"
+            >
+              {!isVerifying && (
+                <button
+                  onClick={handleTutupCaptcha}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1.5 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              )}
+
+              <div className="text-center mb-5">
+                <div className="w-14 h-14 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <ShieldCheck size={28} />
+                </div>
+                <h3 className="text-base font-extrabold text-gray-900 mb-1">
+                  Verifikasi Keamanan
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Centang kotak di bawah untuk melanjutkan pelacakan.
+                </p>
+              </div>
+
+              {/* ✅ Widget TETAP ter-mount saat loading (overlay spinner di atasnya) */}
+              <div className="relative flex justify-center mb-3 min-h-[78px]">
+                <ReCaptcha key={captchaKey} onChange={handleCaptchaVerified} />
+                {isVerifying && (
+                  <div className="absolute inset-0 bg-white/85 flex flex-col items-center justify-center gap-2 rounded-md z-10">
+                    <Loader2
+                      size={22}
+                      className="animate-spin text-[#FFCC00]"
+                    />
+                    <p className="text-xs text-gray-600 font-medium">
+                      Memproses pelacakan...
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {captchaError && !isVerifying && (
+                <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 flex items-start gap-2 mt-3">
+                  <AlertCircle
+                    size={14}
+                    className="text-red-600 shrink-0 mt-0.5"
+                  />
+                  <p className="text-xs text-red-700 font-medium">
+                    {captchaError}
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ===================================================== */}
+      {/* MODAL HASIL TRACKING                                   */}
+      {/* ===================================================== */}
       <AnimatePresence>
         {modalBuka && (
           <motion.div
