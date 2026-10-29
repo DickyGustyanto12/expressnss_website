@@ -18,7 +18,7 @@ export interface PengaturanTokenAi {
 }
 
 export const PESAN_LIMIT_DEFAULT =
-  'Maaf Kak, batas penggunaan asisten AI untuk sesi ini sudah tercapai. 🙏 Silakan klik tombol "Hubungkan dengan Customer Service" agar pertanyaan Kakak dibantu langsung oleh tim kami.';
+  "Maaf Kak, batas penggunaan asisten AI untuk sesi ini sudah tercapai. 🙏 Kakak sekarang kami hubungkan langsung dengan tim Customer Service kami.";
 
 const PENGATURAN_DEFAULT: PengaturanTokenAi = {
   aktif: true,
