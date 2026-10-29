@@ -34,7 +34,6 @@ interface PesanChat {
   clientMessageId?: string;
 }
 
-// Ubah URL (dan link markdown [teks](url)) di pesan menjadi link yang bisa diklik
 const POLA_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
 function TeksDenganLink({ teks }: { teks: string }) {
@@ -49,7 +48,6 @@ function TeksDenganLink({ teks }: { teks: string }) {
     let label = m[1] ?? url;
     let ekor = "";
     if (!m[2]) {
-      // Tanda baca di akhir kalimat bukan bagian dari URL
       const tanda = url.match(/[.,!?;:)]+$/);
       if (tanda) {
         ekor = tanda[0];
@@ -58,8 +56,6 @@ function TeksDenganLink({ teks }: { teks: string }) {
       }
     }
 
-    // Link ke bagian halaman yang sama (mis. /#cabang) dibuka di tab ini,
-    // selain itu di tab baru agar percakapan chat tidak hilang
     let tabIni = false;
     try {
       const u = new URL(url);
@@ -69,7 +65,6 @@ function TeksDenganLink({ teks }: { teks: string }) {
         u.pathname === window.location.pathname &&
         !!u.hash;
     } catch {
-      // URL tidak valid: tetap tampil sebagai link biasa
     }
 
     bagian.push(
@@ -91,7 +86,6 @@ function TeksDenganLink({ teks }: { teks: string }) {
   return <>{bagian}</>;
 }
 
-// Satu gelembung pesan (dipakai mode AI & mode Customer Service)
 function GelembungPesan({ msg }: { msg: PesanChat }) {
   if (msg.pengirim === "sistem") {
     return (
@@ -160,7 +154,6 @@ const ChatWidget = ({
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [percobaanKoneksi, setPercobaanKoneksi] = useState(0);
 
-  // Pesan pemicu saat AI mengalihkan ke CS (dikirim ke admin setelah tersambung)
   const pesanPemicuRef = useRef<{ teks: string; alasan?: string } | null>(null);
 
   const [aiSettings, setAiSettings] = useState({
@@ -174,34 +167,28 @@ const ChatWidget = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ Hook dipanggil DULU agar 'status' tersedia sebelum dipakai ref
   const { socket, status } = useLiveChatSocket(
     chatMode === "live" ? token : null,
     chatMode === "live" ? conversationId : null,
     false,
   );
 
-  // ✅ Ref untuk membaca status terbaru di dalam timeout (anti stale closure)
   const statusRef = useRef(status);
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
-  // Ref status widget terbuka/tertutup untuk dibaca di listener socket
   const bukaChatRef = useRef(bukaChat);
   useEffect(() => {
     bukaChatRef.current = bukaChat;
   }, [bukaChat]);
 
-  // Notifikasi OS untuk customer: siapkan service worker saat live chat,
-  // klik notifikasi → fokus ke tab ini & buka widget chat
   useEffect(() => {
     if (chatMode !== "live") return;
     siapkanNotifikasi();
     return dengarKlikNotifikasi(() => setBukaChat(true));
   }, [chatMode, setBukaChat]);
 
-  // ====== Load pengaturan AI ======
   useEffect(() => {
     const fetchAiSettings = async () => {
       try {
@@ -222,7 +209,6 @@ const ChatWidget = ({
           });
         }
       } catch {
-        // Diabaikan (tidak ditampilkan di console browser)
       } finally {
         setIsLoadingSettings(false);
       }
@@ -230,7 +216,6 @@ const ChatWidget = ({
     fetchAiSettings();
   }, []);
 
-  // ====== Sapaan awal mode AI ======
   useEffect(() => {
     if (
       bukaChat &&
@@ -252,7 +237,6 @@ const ChatWidget = ({
     }
   }, [bukaChat, chatMode, isLoadingSettings, nama]);
 
-  // ====== Timeout koneksi live chat (pakai statusRef) ======
   useEffect(() => {
     if (chatMode !== "live" || !token || !conversationId) return;
 
@@ -273,7 +257,6 @@ const ChatWidget = ({
     };
   }, [chatMode, token, conversationId, percobaanKoneksi]);
 
-  // ====== Socket connected → tampilkan status & teruskan pesan pemicu ke CS ======
   useEffect(() => {
     if (chatMode === "live" && status === "connected") {
       if (connectionTimeoutRef.current) {
@@ -293,7 +276,6 @@ const ChatWidget = ({
           },
         ]);
 
-        // Beri tahu admin: chat ini dialihkan otomatis oleh AI
         const pemicu = pesanPemicuRef.current;
         if (pemicu && socket && conversationId) {
           pesanPemicuRef.current = null;
@@ -314,7 +296,6 @@ const ChatWidget = ({
     }
   }, [status, chatMode, isConnectingLive, socket, conversationId]);
 
-  // ====== Listener pesan masuk saat live ======
   useEffect(() => {
     if (!socket || chatMode !== "live") return;
 
@@ -338,8 +319,6 @@ const ChatWidget = ({
           return [...prev, pesanBaruAdmin];
         });
 
-        // Notifikasi balasan CS: suara + notifikasi browser jika
-        // halaman di-minimize / tidak fokus / widget chat tertutup
         putarSuaraNotifikasi();
         const widgetTidakTerlihat = !bukaChatRef.current;
         if (halamanTidakDilihat() || widgetTidakTerlihat) {
@@ -387,12 +366,9 @@ const ChatWidget = ({
   const dapatkanWaktuSekarang = () =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // =====================================================
-  // ✅ VALIDASI NOMOR WHATSAPP STANDAR INDONESIA
-  // =====================================================
   const handleNomorHpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const hanyaAngka = e.target.value.replace(/\D/g, ""); // buang non-digit
-    setNomorHp(hanyaAngka.slice(0, 13)); // maksimal 13 digit
+    const hanyaAngka = e.target.value.replace(/\D/g, "");
+    setNomorHp(hanyaAngka.slice(0, 13));
     if (errorNomor) setErrorNomor(null);
   };
 
@@ -405,7 +381,6 @@ const ChatWidget = ({
     return null;
   };
 
-  // ====== Submit form awal ======
   const handleMulaiChat = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -421,7 +396,6 @@ const ChatWidget = ({
     }
 
     setIsSubmitting(true);
-    // Minta izin notifikasi saat customer mulai chat (perlu aksi pengguna)
     mintaIzinNotifikasi();
 
     try {
@@ -457,7 +431,6 @@ const ChatWidget = ({
     }
   };
 
-  // ====== Pindah otomatis ke Customer Service (tanpa klik tombol) ======
   const hubungkanCsOtomatis = (pesanPemicu: string, alasan?: string) => {
     if (!conversationId || !token) return;
     pesanPemicuRef.current = { teks: pesanPemicu, alasan };
@@ -473,7 +446,6 @@ const ChatWidget = ({
     setPercobaanKoneksi((n) => n + 1);
   };
 
-  // ====== Chat dengan AI ======
   const handleAiMessage = async () => {
     if (!pesanInput.trim() || isAiThinking) return;
 
@@ -501,7 +473,6 @@ const ChatWidget = ({
           }),
         });
       } catch {
-        // Diabaikan (tidak ditampilkan di console browser)
       }
     }
 
@@ -549,11 +520,9 @@ const ChatWidget = ({
               }),
             });
           } catch {
-            // Diabaikan (tidak ditampilkan di console browser)
           }
         }
 
-        // Customer marah / komplain / minta CS → otomatis pindah ke CS
         if (data.eskalasi) {
           hubungkanCsOtomatis(userText, data.alasan);
         }
@@ -575,7 +544,6 @@ const ChatWidget = ({
     }
   };
 
-  // ====== Kirim pesan live ======
   const handleKirimPesanLive = () => {
     if (
       isClosed ||
@@ -633,7 +601,6 @@ const ChatWidget = ({
     localStorage.removeItem("live_chat_nomor_hp");
   };
 
-  // Kembali ke AI tetap memakai sesi yang sama (limit token AI dihitung per sesi)
   const handleKembaliKeAI = () => {
     setChatMode("ai");
     setIsClosed(false);
@@ -664,7 +631,6 @@ const ChatWidget = ({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-[90vw] sm:w-[380px] max-w-[400px] bg-white rounded-sm shadow-2xl overflow-hidden border-2 border-[#FFCC00] mb-3 flex flex-col h-[550px] max-h-[85vh]"
           >
-            {/* ===== Header ===== */}
             <div className="bg-[#FFCC00] text-black px-3.5 py-3 flex items-center justify-between shadow-sm border-b border-yellow-400 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
@@ -717,7 +683,6 @@ const ChatWidget = ({
             </div>
 
             <div className="flex flex-col flex-1 bg-slate-50 overflow-hidden">
-              {/* ===== MODE FORM ===== */}
               {chatMode === "form" && (
                 <div className="flex-1 flex flex-col">
                   <div className="flex-1 p-6 flex flex-col items-center justify-center text-center">
@@ -751,7 +716,6 @@ const ChatWidget = ({
                         />
                       </div>
 
-                      {/* ✅ INPUT NOMOR WHATSAPP TERVERIDIKASI */}
                       <div>
                         <div className="relative">
                           <Phone
@@ -811,7 +775,6 @@ const ChatWidget = ({
                 </div>
               )}
 
-              {/* ===== MODE AI ===== */}
               {chatMode === "ai" && (
                 <>
                   <div className="flex-1 p-3 overflow-y-auto space-y-3">
@@ -849,7 +812,6 @@ const ChatWidget = ({
                       <GelembungPesan key={msg.id} msg={msg} />
                     ))}
 
-                    {/* ✅ LOADING TANPA TEKS: typing dots ala WhatsApp */}
                     {isAiThinking && (
                       <div className="flex items-start">
                         <div className="bg-white border border-gray-200 rounded-sm rounded-bl-none px-3.5 py-3 shadow-sm flex items-center gap-1">
@@ -897,7 +859,6 @@ const ChatWidget = ({
                 </>
               )}
 
-              {/* ===== MODE LIVE ===== */}
               {chatMode === "live" && (
                 <>
                   <div className="px-3 py-1.5 bg-yellow-100 border-b border-yellow-200 flex items-center justify-between text-[11px] text-gray-800 shrink-0">
@@ -910,7 +871,6 @@ const ChatWidget = ({
                   </div>
 
                   <div className="flex-1 p-3 overflow-y-auto space-y-2.5">
-                    {/* Riwayat chat dengan AI tetap terlihat setelah dialihkan ke CS */}
                     {daftarPesan.map((msg) => (
                       <GelembungPesan
                         key={msg.clientMessageId || msg.id}
@@ -1001,7 +961,6 @@ const ChatWidget = ({
         )}
       </AnimatePresence>
 
-      {/* ===== Tombol floating ===== */}
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}

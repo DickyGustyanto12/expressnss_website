@@ -23,10 +23,6 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
-// ========== FILE UPLOAD (banner, hero, info) ==========
-// Di production Next.js tidak menjamin file yang ditambahkan ke public/ setelah
-// build ikut tersaji, jadi /uploads/* dilayani langsung dari folder upload
-// (di Docker folder ini berupa volume agar tidak hilang saat container dibuat ulang).
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 const MIME_UPLOAD = {
   ".webp": "image/webp",
@@ -52,7 +48,6 @@ function layaniUpload(req, res, pathname) {
 
   const file = path.resolve(UPLOAD_DIR, relatif);
   const tipe = MIME_UPLOAD[path.extname(file).toLowerCase()];
-  // Tolak path di luar folder upload & tipe file selain gambar
   if (!file.startsWith(UPLOAD_DIR + path.sep) || !tipe) {
     res.statusCode = 404;
     res.end("Not found");
@@ -77,11 +72,9 @@ function layaniUpload(req, res, pathname) {
   return true;
 }
 
-// Jam ambil antrian admin: 08.00 – 16.59 (sama dengan lib/jam-operasional.ts)
 const JAM_BUKA = 8;
 const JAM_TUTUP = 17;
 
-// Jam saat ini di zona waktu laptop admin (fallback WIB)
 function jamDiZona(timeZone) {
   const ambil = (tz) =>
     Number(
@@ -120,19 +113,16 @@ app.prepare().then(() => {
       `✅ Client connected: ${socket.id} | role: ${socket.data.role}`,
     );
 
-    // ========== ADMIN JOIN ROOM NOTIFIKASI ==========
     socket.on("admins:live-chat:join", () => {
       socket.join("admins:live-chat");
       console.log(`📡 Admin joined room: admins:live-chat`);
     });
 
-    // ========== JOIN ROOM CONVERSATION ==========
     socket.on("conversation:join", (conversationId) => {
       socket.join(`conversation:${conversationId}`);
       console.log(`📡 Joined room: conversation:${conversationId}`);
     });
 
-    // ========== KIRIM PESAN ==========
     socket.on("message:send", async (data, callback) => {
       try {
         const {
@@ -147,7 +137,6 @@ app.prepare().then(() => {
           `[SOCKET] message:send | conv:${conversationId} | ${senderType} | "${message}"`,
         );
 
-        // 1. Simpan ke database
         const [result] = await pool.query(
           `INSERT INTO live_chat_messages 
            (conversation_id, client_message_id, sender_type, sender_admin_id, message, is_read, created_at) 
@@ -163,7 +152,6 @@ app.prepare().then(() => {
           ],
         );
 
-        // 2. Ambil info customer untuk notifikasi
         const [rows] = await pool.query(
           `SELECT customer_name, customer_whatsapp 
            FROM live_chat_conversations WHERE id = ?`,
@@ -182,10 +170,8 @@ app.prepare().then(() => {
           clientMessageId,
         };
 
-        // 3. Broadcast ke SEMUA ADMIN (notifikasi toast)
         io.to("admins:live-chat").emit("message:new", messageData);
 
-        // 4. Broadcast ke room conversation (chat widget)
         io.to(`conversation:${conversationId}`).emit(
           "message:new",
           messageData,
@@ -201,7 +187,6 @@ app.prepare().then(() => {
       }
     });
 
-    // ========== ADMIN CLAIM CHAT ==========
     socket.on("conversation:claim", async (data, callback) => {
       try {
         const { conversationId, adminId, timeZone } = data;
@@ -240,7 +225,6 @@ app.prepare().then(() => {
       }
     });
 
-    // ========== ADMIN TUTUP CHAT ==========
     socket.on("conversation:close", async (data, callback) => {
       try {
         const { conversationId } = data;
@@ -280,7 +264,6 @@ app.prepare().then(() => {
     );
   });
 
-  // ========== GRACEFUL SHUTDOWN (docker stop / Ctrl+C) ==========
   let sedangBerhenti = false;
   const berhenti = (sinyal) => {
     if (sedangBerhenti) return;

@@ -2,9 +2,6 @@ import { pool } from "./db";
 import type { RowDataPacket } from "mysql2";
 import { cariKotaMirip, saranKota } from "@/lib/pencocokan-kota";
 
-// Satu sumber perhitungan ongkir untuk halaman Cek Ongkir & chatbot AI.
-// Selalu dibaca langsung dari tabel tarif_ongkir (tanpa cache).
-
 export interface DaftarKota {
   asal: string[];
   tujuan: string[];
@@ -41,7 +38,6 @@ export async function ambilDaftarKota(): Promise<DaftarKota> {
   };
 }
 
-// Hitung ongkir; nama kota dicocokkan secara toleran (tidak harus sama persis)
 export async function hitungOngkir(
   asal: string,
   tujuan: string,

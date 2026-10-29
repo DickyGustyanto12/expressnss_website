@@ -1,9 +1,6 @@
 import { pool } from "./db";
 import type { RowDataPacket } from "mysql2";
 
-// Pengaturan & pencatatan pemakaian token Gemini per sesi chat.
-// Sesi = satu baris live_chat_conversations (satu customer dari form awal).
-
 export type ModeLimit = "rupiah" | "token";
 
 export interface PengaturanTokenAi {
@@ -11,8 +8,8 @@ export interface PengaturanTokenAi {
   mode: ModeLimit;
   limitRupiah: number;
   limitToken: number;
-  hargaInputUsd: number; // USD per 1 juta token input
-  hargaOutputUsd: number; // USD per 1 juta token output
+  hargaInputUsd: number;
+  hargaOutputUsd: number;
   kursUsd: number;
   pesanLimit: string;
 }
@@ -94,12 +91,11 @@ export function hitungBiayaRupiah(
 
 export interface StatusLimitSesi {
   tercapai: boolean;
-  pemakaian: number; // rupiah atau token, sesuai mode
+  pemakaian: number;
   limit: number;
   limitKustom: boolean;
 }
 
-// Cek apakah sesi sudah mencapai batas (dipanggil sebelum memanggil Gemini)
 export async function cekLimitSesi(
   conversationId: number,
   p: PengaturanTokenAi,
@@ -139,7 +135,6 @@ export async function cekLimitSesi(
   };
 }
 
-// Catat token yang terpakai setelah Gemini menjawab
 export async function catatPemakaianToken(
   conversationId: number,
   p: PengaturanTokenAi,

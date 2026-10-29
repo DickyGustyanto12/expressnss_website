@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
 
     let gambar_url = "";
 
-    // Upload gambar jika ada
     if (gambarFile && gambarFile.size > 0) {
       const bytes = await gambarFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -44,7 +43,6 @@ export async function POST(req: NextRequest) {
         fileName,
       );
 
-      // Pastikan folder ada
       const dir = path.dirname(uploadPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -91,7 +89,6 @@ export async function PUT(req: NextRequest) {
 
     let gambar_url = "";
 
-    // Upload gambar baru jika ada
     if (gambarFile && gambarFile.size > 0) {
       const bytes = await gambarFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -113,7 +110,6 @@ export async function PUT(req: NextRequest) {
       fs.writeFileSync(uploadPath, buffer);
       gambar_url = `/uploads/hero/${fileName}`;
     } else {
-      // Gunakan gambar lama
       gambar_url = formData.get("gambar_lama") as string;
     }
 

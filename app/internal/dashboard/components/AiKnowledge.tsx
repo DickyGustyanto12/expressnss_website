@@ -84,7 +84,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
     urutan: 0,
   });
 
-  // State kosong - akan diisi dari database
   const [settingsForm, setSettingsForm] = useState<AiSettings>({
     id: 0,
     ai_name: "",
@@ -109,7 +108,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       const result = await res.json();
       if (res.ok) setData(result);
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +135,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
         });
       }
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoadingSettings(false);
     }
@@ -205,7 +202,7 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
           showConfirmButton: false,
         });
         setActiveSetting(null);
-        loadSettings(); // Reload untuk memastikan data terbaru
+        loadSettings();
       } else {
         throw new Error(result.error || "Gagal menyimpan");
       }
@@ -286,7 +283,6 @@ const AiKnowledge = ({ adminId, adminName }: AiKnowledgeProps) => {
       });
       if (res.ok) loadData();
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     }
   };
 

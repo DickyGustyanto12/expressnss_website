@@ -17,20 +17,16 @@ import ReCaptcha from "@/components/ui/ReCaptcha";
 const Tracking = () => {
   const [kataKunci, setKataKunci] = useState("");
 
-  // ====== State modal hasil tracking ======
   const [modalBuka, setModalBuka] = useState(false);
   const [hasilTracking, setHasilTracking] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isModalLoading, setIsModalLoading] = useState(false);
 
-  // ====== State modal captcha ======
   const [showCaptchaModal, setShowCaptchaModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [captchaError, setCaptchaError] = useState("");
-  // ✅ Key untuk me-remount widget captcha (pengganti reset() yang crash)
   const [captchaKey, setCaptchaKey] = useState(0);
 
-  // ====== STEP 1: Klik tombol Cari → buka popup captcha ======
   const handleCari = (e: React.FormEvent) => {
     e.preventDefault();
     const keyword = kataKunci.trim();
@@ -50,14 +46,11 @@ const Tracking = () => {
     setShowCaptchaModal(true);
   };
 
-  // ====== STEP 2: Captcha dicentang → fetch otomatis ======
   const handleCaptchaVerified = async (token: string | null) => {
-    // Token kedaluwarsa / dihapus Google
     if (!token) {
       setCaptchaError("Verifikasi kedaluwarsa. Silakan centang ulang.");
       return;
     }
-    // Cegah double-submit jika callback terpanggil dua kali
     if (isVerifying) return;
 
     setIsVerifying(true);
@@ -85,10 +78,9 @@ const Tracking = () => {
 
       const data = await response.json();
 
-      // ====== STEP 3: Tutup popup captcha → buka modal hasil ======
       setShowCaptchaModal(false);
       setIsVerifying(false);
-      setCaptchaKey((k) => k + 1); // widget segar untuk pencarian berikutnya
+      setCaptchaKey((k) => k + 1);
 
       setModalBuka(true);
       setIsModalLoading(false);
@@ -117,7 +109,6 @@ const Tracking = () => {
       setCaptchaError(
         err?.message || "Gagal memverifikasi. Silakan coba lagi.",
       );
-      // ✅ Token lama sudah terpakai/rusak → render widget BARU (aman, tanpa reset())
       setCaptchaKey((k) => k + 1);
     }
   };
@@ -162,9 +153,6 @@ const Tracking = () => {
         </div>
       </form>
 
-      {/* ===================================================== */}
-      {/* POPUP CAPTCHA                                          */}
-      {/* ===================================================== */}
       <AnimatePresence>
         {showCaptchaModal && (
           <motion.div
@@ -201,7 +189,6 @@ const Tracking = () => {
                 </p>
               </div>
 
-              {/* ✅ Widget TETAP ter-mount saat loading (overlay spinner di atasnya) */}
               <div className="relative flex justify-center mb-3 min-h-[78px]">
                 <ReCaptcha key={captchaKey} onChange={handleCaptchaVerified} />
                 {isVerifying && (
@@ -233,9 +220,6 @@ const Tracking = () => {
         )}
       </AnimatePresence>
 
-      {/* ===================================================== */}
-      {/* MODAL HASIL TRACKING                                   */}
-      {/* ===================================================== */}
       <AnimatePresence>
         {modalBuka && (
           <motion.div

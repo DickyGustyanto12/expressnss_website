@@ -12,9 +12,6 @@ interface BarisImport {
 
 const MAKS_BARIS = 5000;
 
-// Import massal tarif dari Excel.
-// Rute yang sudah ada (asal + tujuan + layanan sama) → harga diperbarui,
-// rute baru → ditambahkan. Semua dalam satu transaksi.
 export async function POST(request: Request) {
   const conn = await pool.getConnection();
   try {

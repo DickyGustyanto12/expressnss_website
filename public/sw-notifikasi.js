@@ -1,7 +1,3 @@
-// Service Worker notifikasi chat NSS Express.
-// Menampilkan notifikasi OS (tetap muncul saat browser di-minimize / tab lain)
-// dan mengarahkan klik notifikasi ke tab & percakapan yang sesuai.
-
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -24,7 +20,6 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // Cari tab yang sudah terbuka di halaman yang sesuai
       const tab = semuaTab.find(
         (c) => new URL(c.url).pathname === path,
       );
@@ -35,7 +30,6 @@ self.addEventListener("notificationclick", (event) => {
         return;
       }
 
-      // Tidak ada tab yang cocok → buka tab baru
       if (self.clients.openWindow) {
         await self.clients.openWindow(urlTujuan);
       }

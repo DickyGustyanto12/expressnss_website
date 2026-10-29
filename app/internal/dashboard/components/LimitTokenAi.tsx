@@ -60,7 +60,6 @@ interface Sesi {
 
 type FilterSesi = "semua" | "dipakai" | "hampir" | "tercapai" | "kustom";
 
-// Asumsi ukuran satu jawaban AI bila belum ada data pemakaian nyata
 const ASUMSI_TOKEN_INPUT = 1000;
 const ASUMSI_TOKEN_OUTPUT = 200;
 
@@ -116,7 +115,6 @@ const LimitTokenAi = () => {
 
   useEffect(() => {
     const awal = setTimeout(() => muat(true), 0);
-    // Pemakaian diperbarui berkala; pengaturan tidak ditimpa saat sedang diedit
     const timer = setInterval(() => muat(false), 30_000);
     return () => {
       clearTimeout(awal);
@@ -162,7 +160,6 @@ const LimitTokenAi = () => {
     }
   };
 
-  // ===== Perhitungan per sesi =====
   const limitSesi = (s: Sesi) => {
     if (!form) return { limit: 0, kustom: false };
     const kustom =
@@ -204,7 +201,6 @@ const LimitTokenAi = () => {
     return true;
   });
 
-  // ===== Simulasi berdasarkan data nyata (atau asumsi) =====
   const simulasi = (() => {
     if (!form) return null;
     const dariData = ringkasan?.rataBiayaPerRequest != null;
@@ -228,7 +224,6 @@ const LimitTokenAi = () => {
     return { dariData, tokenPerJawaban, biayaPerJawaban, jawaban };
   })();
 
-  // ===== Aksi per sesi =====
   const bukaAturLimit = (s: Sesi) => {
     const { limit, kustom } = limitSesi(s);
     setInputLimitSesi(kustom ? String(limit) : "");
@@ -320,7 +315,6 @@ const LimitTokenAi = () => {
 
   return (
     <div className="space-y-4">
-      {/* ===== Header ===== */}
       <div className="bg-white px-5 py-4 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00] flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
@@ -348,7 +342,6 @@ const LimitTokenAi = () => {
         </span>
       </div>
 
-      {/* ===== Ringkasan ===== */}
       {ringkasan && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {[
@@ -399,7 +392,6 @@ const LimitTokenAi = () => {
         </div>
       )}
 
-      {/* ===== Pengaturan + Simulasi ===== */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 bg-white rounded-sm border border-gray-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between gap-2">
@@ -561,7 +553,6 @@ const LimitTokenAi = () => {
           </div>
         </div>
 
-        {/* Simulasi */}
         {simulasi && (
           <div className="bg-gray-950 text-white rounded-sm shadow-sm p-5 space-y-4">
             <h3 className="font-extrabold text-[#FFCC00] flex items-center gap-2">
@@ -604,7 +595,6 @@ const LimitTokenAi = () => {
         )}
       </div>
 
-      {/* ===== Tabel sesi ===== */}
       <div className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-extrabold text-gray-900 text-sm">
@@ -772,7 +762,6 @@ const LimitTokenAi = () => {
         </div>
       </div>
 
-      {/* ===== Modal limit khusus per sesi ===== */}
       {sesiDiatur && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 relative shadow-2xl">

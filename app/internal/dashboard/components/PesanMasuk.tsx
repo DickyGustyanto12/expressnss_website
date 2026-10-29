@@ -93,7 +93,6 @@ const formSaranKosong: FormSaranState = {
   aktif: true,
 };
 
-// Cocokkan kata kunci template dengan pesan customer
 function cariSaranTemplates(
   templates: TemplateSaran[],
   pesan: string,
@@ -134,11 +133,9 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     type: "warning" as "warning" | "success" | "error",
   });
 
-  // ====== State saran balasan (panel pencocokan) ======
   const [daftarSaran, setDaftarSaran] = useState<SaranTerskor[]>([]);
   const [panelSaranTerbuka, setPanelSaranTerbuka] = useState(false);
 
-  // ====== State modal CRUD template ======
   const [daftarTemplate, setDaftarTemplate] = useState<TemplateSaran[]>([]);
   const [modalSaranOpen, setModalSaranOpen] = useState(false);
   const [formSaranMode, setFormSaranMode] = useState<
@@ -162,7 +159,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
 
   const { socket, status } = useLiveChatSocket(null, null, true, adminId);
 
-  // ====== Jam terkini (waktu lokal laptop, update tiap detik) ======
   const [sekarang, setSekarang] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setSekarang(new Date()), 1000);
@@ -202,7 +198,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                 }
               }
             } catch {
-              // Diabaikan (tidak ditampilkan di console browser)
             }
             return { ...item, lastMessage };
           }),
@@ -271,7 +266,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     }
   }, [loadConversations]);
 
-  // ====== Muat template saran dari database ======
   const loadTemplates = useCallback(async () => {
     try {
       const res = await fetch("/api/suggestion-admin");
@@ -288,7 +282,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         );
       }
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     }
   }, []);
 
@@ -475,7 +468,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     }
   }, [kontakAktifId]);
 
-  // ====== Data turunan ======
   const pesanTersaringTab = daftarPesan.filter((item) => {
     if (tabAktif === "riwayat") return item.status === "closed";
     return item.statusChat === "antrian";
@@ -505,7 +497,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         .find((m) => m.penulis === "pelanggan") || null
     : null;
 
-  // ====== Handler utama ======
   const loadMessageHistory = async (convId: number) => {
     setKontakAktifId(convId);
     setPanelSaranTerbuka(false);
@@ -540,7 +531,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         );
       }
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     }
   };
 
@@ -674,9 +664,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     loadConversations();
   };
 
-  // =====================================================
-  // CRUD TEMPLATE SARAN (MODAL DI DALAM PESAN MASUK)
-  // =====================================================
   const bukaModalSaran = () => {
     setFormSaranMode("list");
     setModalSaranOpen(true);
@@ -792,9 +779,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     }
   };
 
-  // =====================================================
-  // PANEL SARAN (pencocokan kata kunci saat chat)
-  // =====================================================
   const hitungSaran = () => {
     if (!pesanCustomerTerakhir) {
       setDaftarSaran([]);
@@ -814,7 +798,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     setPanelSaranTerbuka(true);
   };
 
-  // Setiap ada pesan customer baru → hitung saran & buka panel otomatis
   useEffect(() => {
     if (!pesanCustomerTerakhir) {
       setDaftarSaran([]);
@@ -830,19 +813,16 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
     setPanelSaranTerbuka(hasil.length > 0);
   }, [pesanCustomerTerakhir?.id, kontakAktifId, daftarTemplate]);
 
-  // KLIK SARAN → HANYA mengisi kolom, TIDAK mengirim
   const pakaiSaran = (isi: string) => {
     setInputPesan(isi);
     balasanInputRef.current?.focus();
   };
 
-  // Notifikasi diklik → buka percakapan yang sesuai
   useEffect(() => {
     if (targetConversationId === null || isLoading) return;
 
     const target = daftarPesan.find((p) => p.id === targetConversationId);
     if (!target) {
-      // Percakapan belum ada di daftar → muat ulang sekali
       if (!targetSudahDimuatUlangRef.current) {
         targetSudahDimuatUlangRef.current = true;
         loadConversations();
@@ -907,7 +887,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         }
       `}</style>
 
-      {/* ===== Header ===== */}
       <div className="bg-white px-5 py-3 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00] shrink-0">
         <div className="flex items-center justify-between">
           <div>
@@ -918,7 +897,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
               Kelola antrian pesan dan riwayat percakapan pelanggan NSS Express.
             </p>
 
-            {/* Jam terkini (zona waktu laptop) & status antrian */}
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <div className="flex items-center gap-2 bg-gray-950 text-white px-3 py-1.5 rounded-md shadow-sm">
                 <Clock size={14} className="text-[#FFCC00]" />
@@ -969,7 +947,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* ===== TOMBOL MODAL CRUD SARAN ===== */}
             <button
               onClick={bukaModalSaran}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-extrabold bg-[#FFCC00] hover:bg-yellow-400 text-gray-950 border border-yellow-300 transition-colors cursor-pointer shadow-sm"
@@ -1012,7 +989,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         </div>
       </div>
 
-      {/* ===== Main Content ===== */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex-1 min-h-0 flex">
         <div className="w-full md:w-5/12 lg:w-4/12 border-r border-gray-200 flex flex-col bg-white h-full overflow-hidden">
           <div className="grid grid-cols-2 bg-gray-100 p-1.5 border-b border-gray-200 gap-1 shrink-0">
@@ -1246,7 +1222,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
           </div>
         </div>
 
-        {/* ===== Panel Chat Kanan ===== */}
         <div className="hidden md:flex flex-1 flex-col bg-[#f8f9fa] h-full overflow-hidden">
           {kontakAktif ? (
             <>
@@ -1376,7 +1351,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                       </div>
                     ) : (
                       <div className="bg-white border-t border-gray-200">
-                        {/* Toolbar saran */}
                         <div className="px-3.5 pt-2.5 flex items-center justify-between">
                           <button
                             type="button"
@@ -1394,7 +1368,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                           )}
                         </div>
 
-                        {/* Daftar saran hasil pencocokan */}
                         {panelSaranTerbuka && (
                           <div className="px-3.5 pt-2">
                             {daftarSaran.length > 0 ? (
@@ -1422,7 +1395,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                           </div>
                         )}
 
-                        {/* Form balasan */}
                         <div className="p-3.5 pt-2.5">
                           <form
                             onSubmit={handleKirimPesan}
@@ -1464,13 +1436,9 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
         </div>
       </div>
 
-      {/* ===================================================== */}
-      {/* MODAL SARAN BALASAN CEPAT (CRUD TEMPLATE)             */}
-      {/* ===================================================== */}
       {modalSaranOpen && (
         <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]">
-            {/* Header modal */}
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between shrink-0">
               <h3 className="font-extrabold text-gray-900 text-sm flex items-center gap-2">
                 <Sparkles size={14} className="text-yellow-600" />
@@ -1486,7 +1454,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
 
             {formSaranMode === "list" ? (
               <>
-                {/* Toolbar daftar */}
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
                   <p className="text-xs text-gray-500">
                     {daftarTemplate.length} template tersimpan • kata kunci
@@ -1501,7 +1468,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                   </button>
                 </div>
 
-                {/* Daftar template */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
                   {daftarTemplate.length === 0 ? (
                     <div className="text-center text-gray-400 text-xs py-10">
@@ -1582,7 +1548,6 @@ const PesanMasuk = ({ adminId, adminName }: PesanMasukProps) => {
                 </div>
               </>
             ) : (
-              /* ===== Form tambah / edit ===== */
               <form
                 onSubmit={handleSimpanSaran}
                 className="p-5 space-y-4 overflow-y-auto"

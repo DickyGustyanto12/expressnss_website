@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { ambilDaftarKota, hitungOngkir } from "@/lib/internal/ongkir";
 
-// Daftar kota yang tersedia (untuk saran saat mengetik)
 export async function GET() {
   try {
     return NextResponse.json(await ambilDaftarKota(), { status: 200 });

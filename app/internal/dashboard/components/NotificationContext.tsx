@@ -41,7 +41,6 @@ interface NotificationContextType {
   removeToast: (id: number) => void;
   clearToasts: () => void;
   resetUnreadCount: () => void;
-  // Percakapan yang harus dibuka setelah notifikasi diklik
   targetConversationId: number | null;
   openConversation: (conversationId: number) => void;
   clearTargetConversation: () => void;
@@ -132,16 +131,13 @@ export const NotificationProvider = ({
     removeToast(toast.id);
   };
 
-  // Siapkan notifikasi OS (tetap muncul saat browser di-minimize / tab lain)
   useEffect(() => {
     siapkanNotifikasi();
 
-    // Klik notifikasi OS → service worker memfokuskan tab ini
     const berhenti = dengarKlikNotifikasi((data) => {
       if (data.conversationId) openConversation(data.conversationId);
     });
 
-    // Tab dashboard dibuka dari notifikasi (?percakapan=ID)
     const params = new URLSearchParams(window.location.search);
     const dariUrl = Number(params.get("percakapan"));
     if (dariUrl) {
@@ -158,7 +154,6 @@ export const NotificationProvider = ({
     return berhenti;
   }, [openConversation]);
 
-  // Listen SEMUA pesan dari customer
   useEffect(() => {
     if (!socket || status !== "connected") {
       return;

@@ -2,11 +2,8 @@ import { skorKemiripanKota, AMBANG_KEMIRIPAN } from "@/lib/pencocokan-kota";
 import { ambilDaftarKota, hitungOngkir, type DaftarKota } from "./ongkir";
 import { lacakResi } from "./tracking";
 
-// Jawaban chatbot untuk pertanyaan ONGKIR & LACAK PAKET yang diambil langsung
-// dari database tarif_ongkir / server tracking (real time, tanpa Gemini).
-
 export interface PesanRiwayat {
-  pengirim: string; // "user" | "model"
+  pengirim: string;
   teks: string;
 }
 
@@ -15,7 +12,6 @@ export interface JawabanRealtime {
   jenis: "ongkir" | "lacak";
 }
 
-// Kalimat tanya bot — juga dipakai sebagai penanda untuk melanjutkan konteks
 const TANYA_TUJUAN = "Ke kota mana tujuan pengirimannya";
 const TANYA_ASAL = "Dari kota mana paketnya dikirim";
 const TANYA_RESI = "Silakan kirimkan nomor resinya";
@@ -151,20 +147,16 @@ const pesanBotTerakhir = (riwayat: PesanRiwayat[]) => {
   return "";
 };
 
-// =====================================================
-// ONGKIR
-// =====================================================
 type Peran = "asal" | "tujuan";
 
 interface Sebutan {
   frasa: string;
   mulai: number;
-  akhir: number; // eksklusif
+  akhir: number;
   cocokAsal: boolean;
   cocokTujuan: boolean;
 }
 
-// Cari nama kota yang disebut di kalimat (boleh salah ketik / tanpa "Kab.")
 function cariSebutanKota(token: string[], kota: DaftarKota): Sebutan[] {
   const hasil: Sebutan[] = [];
   const terpakai = new Set<number>();
@@ -174,7 +166,6 @@ function cariSebutanKota(token: string[], kota: DaftarKota): Sebutan[] {
     for (let i = 0; i + n <= token.length; i++) {
       const bagian = token.slice(i, i + n);
       if (bagian.some((t, k) => terpakai.has(i + k))) continue;
-      // Kata "kota"/"kab" boleh di awal frasa (mis. "kota tegal")
       const inti = bagian.filter(
         (t) => !["kota", "kab", "kabupaten"].includes(t),
       );
@@ -188,8 +179,6 @@ function cariSebutanKota(token: string[], kota: DaftarKota): Sebutan[] {
         );
       const sAsal = skor(kota.asal);
       const sTujuan = skor(kota.tujuan);
-      // Frasa >1 kata harus hampir persis (mis. "kota tegal"), supaya
-      // "semarang klaten" tidak terbaca sebagai satu kota "Klaten"
       const ambangFrasa = n > 1 ? 0.9 : ambang;
       if (Math.max(sAsal, sTujuan) < ambangFrasa) continue;
 
@@ -221,7 +210,6 @@ interface StatusOngkir {
   berat: number | null;
 }
 
-// Isi slot asal/tujuan/berat dari satu pesan
 function isiSlot(
   status: StatusOngkir,
   teks: string,
@@ -240,8 +228,6 @@ function isiSlot(
     else sisa.push(s);
   }
 
-  // Kota yang tidak dikenal setelah "dari"/"ke" tetap diambil apa adanya
-  // (nanti dijawab "tidak ditemukan" + saran)
   token.forEach((t, i) => {
     const peran: Peran | null = PENANDA_ASAL.has(t)
       ? "asal"
@@ -255,7 +241,6 @@ function isiSlot(
       baru[peran] = frasa.join(" ");
   });
 
-  // Sebutan tanpa "dari"/"ke": isi slot yang sedang ditanyakan, lalu urutan kalimat
   for (const s of sisa) {
     if (diharapkan && !baru[diharapkan]) {
       baru[diharapkan] = s.frasa;
@@ -277,7 +262,6 @@ function isiSlot(
     }
   }
 
-  // Jawaban singkat untuk pertanyaan bot, mis. "bali" saat ditanya tujuan
   if (diharapkan && !baru[diharapkan] && sebutan.length === 0) {
     const kata = token.filter(kataKota).slice(0, 3);
     if (kata.length) baru[diharapkan] = kata.join(" ");
@@ -296,7 +280,6 @@ const peranDitanyakan = (teksBot: string): Peran | null =>
       ? "tujuan"
       : null;
 
-// Kumpulkan pesan customer dalam alur tanya-jawab ongkir (maks. 4 langkah)
 function konteksOngkir(
   pesan: string,
   riwayat: PesanRiwayat[],
@@ -307,11 +290,10 @@ function konteksOngkir(
   if (POLA_ONGKIR.test(pesan)) return [sekarang];
   if (!diharapkanSekarang) return null;
 
-  // Telusuri mundur: [user, bot-tanya, user, bot-tanya, ...]
   const langkah = [sekarang];
   let i = riwayat.length - 1;
   while (i >= 1 && langkah.length < 5) {
-    while (i >= 0 && riwayat[i].pengirim === "user") i--; // lompati pesan user tanpa balasan
+    while (i >= 0 && riwayat[i].pengirim === "user") i--;
     const bot = riwayat[i];
     const user = riwayat[i - 1];
     if (!bot || !user || user.pengirim !== "user") break;
@@ -337,7 +319,6 @@ async function jawabOngkir(
   const kota = await ambilDaftarKota();
   let langkah = konteksOngkir(pesan, riwayat);
 
-  // Pertanyaan tanpa kata "ongkir" tapi menyebut kota + kirim/biaya/berapa
   if (!langkah && POLA_ONGKIR_LEMAH.test(pesan)) {
     if (cariSebutanKota(tokenisasi(pesan), kota).length > 0) {
       langkah = [{ teks: pesan, diharapkan: null }];
@@ -378,7 +359,6 @@ async function jawabOngkir(
     return `Maaf Kak, tarif dari ${hasil.asal} ke ${hasil.tujuan} belum tersedia di sistem kami. Silakan klik "Hubungkan dengan Customer Service" agar dibantu tim kami ya. 🙏`;
   }
 
-  // Kelompokkan per rute (mis. Kab. Magelang & Kota Magelang)
   const perRute = new Map<string, typeof hasil.layanan>();
   for (const l of hasil.layanan) {
     const rute = `${l.kota_asal} → ${l.kota_tujuan}`;
@@ -404,9 +384,6 @@ async function jawabOngkir(
   return baris.join("\n");
 }
 
-// =====================================================
-// LACAK PAKET
-// =====================================================
 function cariNomorResi(pesan: string): string | null {
   const kandidat = pesan
     .split(/[\s,;:()"'!?]+/)
@@ -459,9 +436,6 @@ async function jawabLacak(
   return baris.join("\n");
 }
 
-// =====================================================
-// PINTU MASUK
-// =====================================================
 export async function jawabDataRealtime(
   pesan: string,
   riwayat: PesanRiwayat[],

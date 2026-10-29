@@ -9,7 +9,6 @@ import "leaflet/dist/leaflet.css";
 import bayanganPenanda from "leaflet/dist/images/marker-shadow.png";
 import Swal from "sweetalert2";
 
-// Ikon penanda kuning NSS Express — SVG lokal (tidak bergantung server luar)
 const svgPenanda = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.4 15 41 15 41s14-15.6 14-26.1C29 7.2 22.7 1 15 1z" fill="#FFCC00" stroke="#111827" stroke-width="2"/><circle cx="15" cy="15" r="5.5" fill="#111827"/></svg>`;
 
 const penandaKuning = L.icon({
@@ -25,8 +24,6 @@ const penandaKuning = L.icon({
 
 L.Marker.prototype.options.icon = penandaKuning;
 
-// Hitung ulang ukuran peta setelah animasi/tata letak selesai,
-// agar potongan peta tidak abu-abu atau bergeser
 const PenyesuaiUkuranPeta = () => {
   const peta = useMap();
   useEffect(() => {

@@ -37,7 +37,6 @@ export async function PUT(req: NextRequest) {
       instructions,
     } = body;
 
-    // Validasi minimal
     if (!persona || !limitations) {
       return NextResponse.json(
         { error: "Persona dan Batasan wajib diisi" },
@@ -45,13 +44,11 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Cek apakah data sudah ada
     const [existing] = await pool.query<RowDataPacket[]>(
       "SELECT id FROM ai_settings LIMIT 1",
     );
 
     if (existing.length > 0) {
-      // Update data yang sudah ada
       await pool.query<ResultSetHeader>(
         `UPDATE ai_settings SET 
           ai_name = ?, 
@@ -72,7 +69,6 @@ export async function PUT(req: NextRequest) {
         ],
       );
     } else {
-      // Insert data baru
       await pool.query<ResultSetHeader>(
         `INSERT INTO ai_settings 
           (ai_name, custom_greeting, persona, limitations, quick_questions, instructions) 

@@ -5,8 +5,6 @@ import { useLiveChatSocket } from "./use-live-chat-socket";
 import { useNotification } from "@/app/internal/dashboard/components/NotificationContext";
 import { mintaIzinNotifikasi } from "./chat-notification";
 
-// Suara, toast & notifikasi browser ditangani terpusat oleh NotificationProvider
-// (selalu aktif di seluruh dashboard). Hook ini hanya membaca state-nya.
 export const useAdminNotification = (adminId: number) => {
   const { unreadCount, resetUnreadCount } = useNotification();
   const { status } = useLiveChatSocket(null, null, true, adminId);

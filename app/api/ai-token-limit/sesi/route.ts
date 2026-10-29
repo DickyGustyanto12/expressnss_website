@@ -4,7 +4,6 @@ import type { RowDataPacket } from "mysql2";
 
 const MAKS_SESI = 300;
 
-// Daftar sesi chat terbaru beserta pemakaian token AI-nya
 export async function GET() {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(

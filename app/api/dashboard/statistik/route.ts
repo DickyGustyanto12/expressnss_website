@@ -7,7 +7,7 @@ const SATU_HARI = 24 * SATU_JAM;
 const JUMLAH_HARI_TREN = 14;
 
 interface RataRata {
-  rata: number | null; // dalam detik
+  rata: number | null;
   jumlah: number;
 }
 
@@ -21,12 +21,9 @@ const rataRata = (nilai: number[]): RataRata => ({
 const keDetik = (ms: number) => Math.floor(ms / 1000);
 const waktu = (v: unknown) => (v ? new Date(v as string).getTime() : null);
 
-// Pesan live chat (bukan fase AI) ditandai client_message_id "web-..." / "admin-..."
 const pesanLive = (clientMessageId: string) =>
   clientMessageId.startsWith("web-") || clientMessageId.startsWith("admin-");
 
-// Statistik dashboard per hari.
-// ?mulai=<epoch ms jam 00.00 hari terpilih di zona waktu laptop admin>
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -39,8 +36,6 @@ export async function GET(req: NextRequest) {
     const selesai = mulai + SATU_HARI;
     const mulaiTren = mulai - (JUMLAH_HARI_TREN - 1) * SATU_HARI;
 
-    // ===== Kondisi saat ini =====
-    // "Menunggu" hanya chat yang sudah minta CS (ada pesan live dari customer)
     const [[saatIni]] = await pool.query<RowDataPacket[]>(
       `SELECT
          SUM(c.status = 'open' AND EXISTS (
@@ -54,7 +49,6 @@ export async function GET(req: NextRequest) {
        FROM live_chat_conversations c`,
     );
 
-    // ===== Percakapan dibuat dalam rentang tren (termasuk hari terpilih) =====
     const [percakapan] = await pool.query<RowDataPacket[]>(
       `SELECT id, status, created_at, assigned_at,
               COALESCE(closed_at, IF(status = 'closed', updated_at, NULL)) AS selesai_at
@@ -63,7 +57,6 @@ export async function GET(req: NextRequest) {
       [keDetik(mulaiTren), keDetik(selesai)],
     );
 
-    // ===== Percakapan selesai dalam rentang tren (berdasarkan waktu ditutup) =====
     const [ditutup] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(closed_at, updated_at) AS selesai_at
        FROM live_chat_conversations
@@ -73,14 +66,12 @@ export async function GET(req: NextRequest) {
       [keDetik(mulaiTren), keDetik(selesai)],
     );
 
-    // ===== Pesan pada hari terpilih (untuk grafik per jam) =====
     const [pesanHariIni] = await pool.query<RowDataPacket[]>(
       `SELECT sender_type, created_at FROM live_chat_messages
        WHERE created_at >= FROM_UNIXTIME(?) AND created_at < FROM_UNIXTIME(?)`,
       [keDetik(mulai), keDetik(selesai)],
     );
 
-    // ===== Grafik per jam & tren harian =====
     const perJam = Array.from({ length: 24 }, (_, jam) => ({
       jam,
       chatBaru: 0,
@@ -112,7 +103,6 @@ export async function GET(req: NextRequest) {
       perJam[Math.floor((waktu(m.created_at)! - mulai) / SATU_JAM)].pesan++;
     }
 
-    // ===== Leadtime (percakapan yang dimulai pada hari terpilih) =====
     const balasanPertama: number[] = [];
     const tungguDiambil: number[] = [];
     const waktuBalas: number[] = [];
@@ -149,7 +139,6 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Awal live chat = pesan live pertama dari customer
         const idxMulaiLive = pesan.findIndex(
           (m) =>
             m.sender_type === "customer" &&
@@ -168,7 +157,6 @@ export async function GET(req: NextRequest) {
           tungguDiambil.push((assignedAt - mulaiLive) / 1000);
         }
 
-        // Waktu balas: dari pesan customer pertama yang belum dibalas → balasan CS
         if (mulaiLive !== null) {
           let belumDibalasSejak: number | null = null;
           let sudahBalasPertama = false;
@@ -203,7 +191,6 @@ export async function GET(req: NextRequest) {
     const bagi = (a: number) =>
       pesanPerSesi.sesi ? Math.round((a / pesanPerSesi.sesi) * 10) / 10 : null;
 
-    // ===== Data website (untuk kartu ringkasan) =====
     const [[dataWebsite]] = await pool.query<RowDataPacket[]>(
       `SELECT
          (SELECT COUNT(*) FROM tarif_ongkir) AS tarif,

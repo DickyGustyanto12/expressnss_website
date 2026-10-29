@@ -27,7 +27,6 @@ export default function DashboardLayout({
           setAdminId(Number(parsedUser.id));
         }
       } catch {
-        // abaikan data user yang rusak, tetap pakai default
       }
     }
   }, [router]);

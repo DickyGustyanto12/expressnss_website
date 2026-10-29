@@ -1,10 +1,6 @@
 import http from "http";
 import https from "https";
 
-// Satu jalur ke server tracking internal untuk menu Lacak Paket & chatbot AI.
-// Sertifikat server tracking self-signed: pengecualian verifikasi TLS hanya
-// berlaku untuk request ke server ini, bukan untuk seluruh aplikasi.
-
 const BATAS_WAKTU_MS = 15_000;
 const agenTracking = new https.Agent({
   rejectUnauthorized: process.env.TRACKING_TLS_VERIFY === "true",
@@ -13,7 +9,6 @@ const agenTracking = new https.Agent({
 const urlTracking = () =>
   new URL(process.env.TRACKING_API_URL || "https://172.16.1.57/ksapisvr");
 
-// Respons mentah server tracking (format { Detail: [...] })
 export function mintaTracking(nomorResi: string): Promise<unknown> {
   const url = urlTracking();
   const body = JSON.stringify({
@@ -72,8 +67,6 @@ export type HasilLacak =
   | { status: "tidak-ditemukan"; resi: string }
   | { status: "gagal"; resi: string };
 
-// Versi terstruktur (dibaca sama seperti halaman Lacak Paket:
-// Detail[0] = status terbaru)
 export async function lacakResi(nomorResi: string): Promise<HasilLacak> {
   const resi = nomorResi.trim();
   try {

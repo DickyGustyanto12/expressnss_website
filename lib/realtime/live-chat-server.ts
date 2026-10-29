@@ -21,10 +21,8 @@ export function initLiveChatSocket(httpServer: any) {
     const isAdminFromAuth = socket.handshake.auth.isAdmin === true;
     const adminIdFromAuth = socket.handshake.auth.adminId;
 
-    // Cek cookie session admin
     const isAdminFromCookie = cookieHeader?.includes("gs_internal_session");
 
-    // PRIORITAS 1: Jika ada cookie session admin
     if (isAdminFromCookie) {
       socket.data.role = "admin";
       socket.data.adminId = adminIdFromAuth || 1;
@@ -33,7 +31,6 @@ export function initLiveChatSocket(httpServer: any) {
       return;
     }
 
-    // PRIORITAS 2: Jika client mengirim flag isAdmin=true (untuk development)
     if (isAdminFromAuth) {
       socket.data.role = "admin";
       socket.data.adminId = adminIdFromAuth || 1;
@@ -45,7 +42,6 @@ export function initLiveChatSocket(httpServer: any) {
       return;
     }
 
-    // PRIORITAS 3: Cek token customer
     if (token) {
       const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
       const [rows] = await pool.execute<RowDataPacket[]>(

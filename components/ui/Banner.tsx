@@ -129,10 +129,8 @@ const Banner = ({ onBukaChat }: BannerProps) => {
         />
       ))}
 
-      {/* PERBAIKAN: Overlay lebih terang - gambar terlihat jelas */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/25 to-transparent z-10"></div>
 
-      {/* Gradient bawah untuk transisi halus */}
       <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
 
       <button

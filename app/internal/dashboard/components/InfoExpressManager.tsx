@@ -67,7 +67,6 @@ const InfoExpressManager = () => {
         setData(result);
       }
     } catch {
-      // Diabaikan (tidak ditampilkan di console browser)
     } finally {
       setIsLoading(false);
     }

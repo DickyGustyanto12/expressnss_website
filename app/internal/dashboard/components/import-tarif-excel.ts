@@ -28,7 +28,7 @@ export interface AnalisaSheet {
 }
 
 export interface BarisExcel {
-  baris: number; // nomor baris seperti di Excel (mulai 1)
+  baris: number;
   kotaAsal: string;
   kotaTujuan: string;
   layanan: string;
@@ -36,7 +36,6 @@ export interface BarisExcel {
   harga: number | null;
 }
 
-// Struktur kolom template import (juga dipakai untuk contoh di layar)
 export const KOLOM_TEMPLATE = [
   "KOTA ASAL",
   "KOTA TUJUAN",
@@ -51,7 +50,6 @@ export const CONTOH_TEMPLATE: (string | number)[][] = [
   ["Semarang", "Kab. Banjarnegara", "NEXT", 1, 17061],
 ];
 
-// Kode TLC asal → nama kota (untuk mengisi Kota Asal otomatis)
 const NAMA_KOTA_TLC: Record<string, string> = {
   SRG: "Semarang",
   JOG: "Yogyakarta",
@@ -73,7 +71,6 @@ const NAMA_KOLOM_LAYANAN = ["LAYANAN", "JENIS LAYANAN"];
 const NAMA_KOLOM_BERAT = ["BERAT (KG)", "BERAT", "BERAT KG"];
 const POLA_KOLOM_HARGA = /^(HARGA|TARIF|ONGKIR)/;
 
-// Nilai sel; untuk sel gabungan (merge) ambil nilai sel kiri-atasnya
 export function bacaSel(
   XLSX: XLSXModule,
   ws: WorkSheet,
@@ -96,7 +93,6 @@ function teksSel(XLSX: XLSXModule, ws: WorkSheet, r: number, c: number) {
     .trim();
 }
 
-// Angka dari sel: mendukung angka Excel & teks "13.915" / "Rp 13.915"
 export function keAngka(nilai: string | number): number | null {
   if (typeof nilai === "number") return Number.isFinite(nilai) ? nilai : null;
   const teks = nilai.replace(/rp/i, "").replace(/\s/g, "");
@@ -125,7 +121,6 @@ export function analisaSheet(
   if (!ws["!ref"]) return null;
   const range = XLSX.utils.decode_range(ws["!ref"]);
 
-  // Cari baris header: baris pertama yang punya kolom nama kota
   let barisHeader = -1;
   for (let r = range.s.r; r <= Math.min(range.s.r + 15, range.e.r); r++) {
     for (let c = range.s.c; c <= range.e.c; c++) {
@@ -165,7 +160,6 @@ export function analisaSheet(
   const kolomLayanan = cariKolom(NAMA_KOLOM_LAYANAN);
   const kolomBerat = cariKolom(NAMA_KOLOM_BERAT);
 
-  // Kolom berisi angka pada beberapa baris data pertama
   const barisContoh: number[] = [];
   for (let r = barisHeader + 1; r <= range.e.r && barisContoh.length < 5; r++) {
     barisContoh.push(r);
@@ -179,7 +173,6 @@ export function analisaSheet(
       ),
   );
 
-  // Urutan: kolom bernama HARGA/TARIF → kolom grup "BARU" → angka paling kanan
   const kolomHarga =
     kolomAngka.find((k) => POLA_KOLOM_HARGA.test(k.sub)) ||
     kolomAngka.find((k) => /BARU/i.test(k.grup)) ||
@@ -191,7 +184,6 @@ export function analisaSheet(
   if (kolomTlcAsal) {
     for (const r of barisContoh) {
       const kode = teksSel(XLSX, ws, r, kolomTlcAsal.index).toUpperCase();
-      // Lewati sel header yang di-merge ke bawah (isinya "TLC ASAL")
       if (kode && kode !== kolomTlcAsal.sub) {
         kotaAsalDefault = NAMA_KOTA_TLC[kode] || kode;
         break;
@@ -226,7 +218,7 @@ export function bacaBarisData(
   for (let r = analisa.barisHeader + 1; r <= analisa.barisAkhir; r++) {
     const kotaMentah = teksSel(XLSX, ws, r, pemetaan.kota);
     const hargaMentah = bacaSel(XLSX, ws, r, pemetaan.harga);
-    if (!kotaMentah && hargaMentah === "") continue; // baris kosong
+    if (!kotaMentah && hargaMentah === "") continue;
 
     hasil.push({
       baris: r + 1,
@@ -249,7 +241,6 @@ export function bacaBarisData(
   return hasil;
 }
 
-// File template Excel untuk diunduh admin
 export function unduhTemplate(XLSX: XLSXModule) {
   const wb = XLSX.utils.book_new();
 

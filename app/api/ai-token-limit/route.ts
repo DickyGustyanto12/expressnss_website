@@ -8,7 +8,6 @@ import {
   type PengaturanTokenAi,
 } from "@/lib/internal/ai-token-limit";
 
-// Pengaturan limit token AI + ringkasan pemakaian
 export async function GET() {
   try {
     const pengaturan = await ambilPengaturanTokenAi();

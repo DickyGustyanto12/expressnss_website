@@ -1,9 +1,5 @@
-// Jam operasional pengambilan antrian chat oleh admin.
-// Antrian bisa diambil pukul 08.00 – 16.59 waktu lokal laptop admin.
-// (Aturan yang sama dicek ulang di server.js saat "conversation:claim".)
-
-export const JAM_BUKA = 8; // 08.00
-export const JAM_TUTUP = 17; // antrian bisa diambil sampai 16.59
+export const JAM_BUKA = 8;
+export const JAM_TUTUP = 17;
 
 export const TEKS_JAM_OPERASIONAL = "08.00 – 16.59";
 
@@ -20,7 +16,6 @@ export function antrianDibuka(waktu: Date = new Date()): boolean {
   return jam >= JAM_BUKA && jam < JAM_TUTUP;
 }
 
-// Singkatan zona waktu Indonesia berdasarkan offset laptop (WIB/WITA/WIT)
 export function singkatanZonaWaktu(waktu: Date = new Date()): string {
   const offsetMenit = -waktu.getTimezoneOffset();
   if (offsetMenit === 7 * 60) return "WIB";
@@ -32,7 +27,6 @@ export function singkatanZonaWaktu(waktu: Date = new Date()): string {
   return `GMT${tanda}${jam}${menit ? `:${String(menit).padStart(2, "0")}` : ""}`;
 }
 
-// Sisa waktu (detik) sampai antrian ditutup (jika buka) / dibuka (jika tutup)
 export function sisaDetikPerubahan(waktu: Date = new Date()): number {
   const detikSekarang =
     waktu.getHours() * 3600 + waktu.getMinutes() * 60 + waktu.getSeconds();

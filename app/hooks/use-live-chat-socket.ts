@@ -20,7 +20,6 @@ export function useLiveChatSocket(
       return;
     }
 
-    // Buat socket baru → SATU PORT (origin yang sama dengan web)
     if (!globalSocket) {
       const socketUrl =
         process.env.NEXT_PUBLIC_SOCKET_URL ||
@@ -47,8 +46,6 @@ export function useLiveChatSocket(
       }
     };
 
-    // Setiap pemakai hook punya listener status sendiri,
-    // sehingga semua komponen ikut tahu saat socket tersambung
     const handleConnect = () => {
       setStatus("connected");
       joinRoom();

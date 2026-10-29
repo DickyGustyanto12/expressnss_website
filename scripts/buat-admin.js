@@ -1,8 +1,3 @@
-// Membuat / memperbarui akun login panel admin.
-// Pemakaian (lokal):   node scripts/buat-admin.js <email> "<nama>" <password> [admin|customer_service]
-// Pemakaian (Docker):  docker compose exec app node scripts/buat-admin.js <email> "<nama>" <password>
-// Koneksi database dibaca dari environment (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME).
-
 const bcrypt = require("bcrypt");
 const mysql = require("mysql2/promise");
 

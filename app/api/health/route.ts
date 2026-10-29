@@ -2,10 +2,6 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
 import type { RowDataPacket } from "mysql2";
 
-// Health check untuk Docker Monitor / monitoring internal.
-// Sehat = server merespons DAN database bisa di-query (semua konten & API
-// website bergantung pada MySQL). Tanpa autentikasi, tanpa detail error.
-
 const BATAS_WAKTU_MS = 3000;
 
 async function cekDatabase(): Promise<boolean> {
@@ -45,7 +41,6 @@ export async function GET() {
     if (await cekDatabase()) return respons("ok", 200);
     console.error("[HEALTH] Database tidak mengembalikan hasil yang valid");
   } catch (error) {
-    // Detail hanya di log server, tidak pernah dikirim ke client
     console.error(
       "[HEALTH] Pemeriksaan gagal:",
       error instanceof Error ? error.message : error,

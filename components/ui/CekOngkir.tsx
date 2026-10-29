@@ -29,7 +29,6 @@ interface InputKotaProps {
   daftarKota: string[];
 }
 
-// Input kota dengan saran otomatis (cocok walau tidak sama persis)
 const InputKota = ({
   label,
   ikon,
@@ -198,7 +197,6 @@ const CekOngkir = () => {
     }
   };
 
-  // Kelompokkan hasil per rute (mis. "Kab. Magelang" & "Kota Magelang")
   const daftarRute = Array.from(
     new Set((hasilOngkir ?? []).map((item) => item.rute)),
   );

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { useLiveChatSocket } from "@/app/hooks/use-live-chat-socket";
 
-// ===== Tipe data dari /api/dashboard/statistik =====
 interface RataRata {
   rata: number | null;
   jumlah: number;
@@ -71,12 +70,10 @@ interface TrafficDashboardProps {
   onBukaMenu: (menu: string) => void;
 }
 
-// Warna seri grafik (tervalidasi: kontras & aman buta warna di latar putih)
 const WARNA_CHAT_MASUK = "#C98500";
 const WARNA_SELESAI = "#2A78D6";
 const INTERVAL_REFRESH = 30_000;
 
-// ===== Utilitas =====
 const keInputTanggal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
@@ -114,7 +111,6 @@ export function formatDurasi(detik: number | null): string {
 const formatAngka = (n: number | null) =>
   n === null ? "—" : n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
 
-// Skala sumbu Y: kelipatan bulat yang rapi (4 garis bantu)
 function skalaY(nilaiMaks: number) {
   const kasar = Math.max(nilaiMaks, 1) / 4;
   const pangkat = Math.pow(10, Math.floor(Math.log10(kasar)));
@@ -126,13 +122,11 @@ function skalaY(nilaiMaks: number) {
   return { maks: langkah * 4, langkah };
 }
 
-// Batang dengan sudut atas membulat 4px, menempel di garis dasar
 function pathBatang(x: number, y: number, w: number, h: number) {
   const r = Math.min(4, w / 2, h);
   return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
 }
 
-// Lebar elemen (untuk grafik responsif)
 function useLebar<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [lebar, setLebar] = useState(0);
@@ -147,7 +141,6 @@ function useLebar<T extends HTMLElement>() {
   return { ref, lebar };
 }
 
-// ===== Kartu statistik =====
 interface KartuProps {
   ikon: React.ReactNode;
   judul: string;
@@ -237,7 +230,6 @@ const Legenda = () => (
   </div>
 );
 
-// ===== Grafik batang: traffic per jam (hari terpilih) =====
 const GrafikPerJam = ({ data }: { data: Statistik["perJam"] }) => {
   const { ref, lebar } = useLebar<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
@@ -402,14 +394,13 @@ const GrafikPerJam = ({ data }: { data: Statistik["perJam"] }) => {
   );
 };
 
-// ===== Grafik garis: tren 14 hari =====
 const GrafikTren = ({ data }: { data: Statistik["tren"] }) => {
   const { ref, lebar } = useLebar<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
 
   const tinggi = 220;
   const kiri = 34;
-  const kanan = 74; // ruang label langsung di ujung garis
+  const kanan = 74;
   const bawah = 24;
   const atas = 12;
   const lebarPlot = Math.max(lebar - kiri - kanan, 0);
@@ -430,7 +421,6 @@ const GrafikTren = ({ data }: { data: Statistik["tren"] }) => {
   let yLabelMasuk = y(terakhir.chatBaru) + 4;
   let yLabelSelesai = y(terakhir.selesai) + 4;
   if (Math.abs(yLabelMasuk - yLabelSelesai) < 13) {
-    // Hindari label bertumpuk
     if (terakhir.chatBaru >= terakhir.selesai) yLabelSelesai = yLabelMasuk + 13;
     else yLabelMasuk = yLabelSelesai + 13;
   }
@@ -521,7 +511,6 @@ const GrafikTren = ({ data }: { data: Statistik["tren"] }) => {
             strokeLinejoin="round"
           />
 
-          {/* Titik hari terpilih (ujung kanan) + titik hover */}
           {[data.length - 1, hover].map((i, k) =>
             i === null ? null : (
               <g key={k}>
@@ -626,7 +615,6 @@ const GrafikTren = ({ data }: { data: Statistik["tren"] }) => {
   );
 };
 
-// ===== Kontainer grafik dengan tombol Tabel/Grafik =====
 const KotakGrafik = ({
   judul,
   keterangan,
@@ -669,9 +657,6 @@ const KotakGrafik = ({
   );
 };
 
-// =====================================================
-// KOMPONEN UTAMA
-// =====================================================
 const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
   const [tanggal, setTanggal] = useState(() => keInputTanggal(new Date()));
   const [data, setData] = useState<Statistik | null>(null);
@@ -692,7 +677,7 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
         cache: "no-store",
       });
       const hasil = await res.json();
-      if (idPermintaan !== permintaanRef.current) return; // respons lama
+      if (idPermintaan !== permintaanRef.current) return;
       if (!res.ok) throw new Error(hasil.error || "Gagal memuat statistik");
       setData(hasil);
       setError(null);
@@ -702,7 +687,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
     }
   }, [mulai]);
 
-  // Muat saat tanggal berubah + refresh berkala + saat tab kembali aktif
   useEffect(() => {
     const awal = setTimeout(muat, 0);
     const timer = setInterval(muat, INTERVAL_REFRESH);
@@ -717,7 +701,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
     };
   }, [muat]);
 
-  // Realtime: ada chat masuk / diambil / ditutup → muat ulang
   useEffect(() => {
     if (!socket || status !== "connected") return;
     const jadwalkan = () => {
@@ -745,7 +728,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
 
   return (
     <div className="space-y-5">
-      {/* ===== Kontrol tanggal & status realtime ===== */}
       <div className="bg-white px-4 py-3 rounded-sm border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CalendarDays size={18} className="text-yellow-600" />
@@ -822,7 +804,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
 
       {data && lt && (
         <>
-          {/* ===== Live Chat ===== */}
           <div className="space-y-2">
             <JudulSeksi judul="Live Chat" keterangan={`data ${labelHari}`} />
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -865,7 +846,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
             </div>
           </div>
 
-          {/* ===== Leadtime ===== */}
           <div className="space-y-2">
             <JudulSeksi
               judul="Leadtime"
@@ -934,7 +914,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
             </div>
           </div>
 
-          {/* ===== Grafik ===== */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <KotakGrafik
               judul={`Traffic per jam · ${labelHari}`}
@@ -1008,7 +987,6 @@ const TrafficDashboard = ({ adminId, onBukaMenu }: TrafficDashboardProps) => {
             />
           </div>
 
-          {/* ===== Data website ===== */}
           <div className="space-y-2">
             <JudulSeksi
               judul="Data Website"

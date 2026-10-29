@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
     const deskripsi = formData.get("deskripsi") as string;
     const tanggal = formData.get("tanggal") as string;
 
-    // ✅ PERBAIKAN: Cek apakah nilainya "1", bukan "true"
     const is_active = formData.get("is_active") === "1" ? 1 : 0;
     const gambarFile = formData.get("gambar") as File;
 
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Upload gambar
     const bytes = await gambarFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const fileName = `info-${Date.now()}-${gambarFile.name.replace(/\s+/g, "-")}`;
@@ -75,7 +73,6 @@ export async function PUT(req: NextRequest) {
     const deskripsi = formData.get("deskripsi") as string;
     const tanggal = formData.get("tanggal") as string;
 
-    // ✅ PERBAIKAN: Cek apakah nilainya "1", bukan "true"
     const is_active = formData.get("is_active") === "1" ? 1 : 0;
     const gambarFile = formData.get("gambar") as File;
     const gambar_lama = formData.get("gambar_lama") as string;

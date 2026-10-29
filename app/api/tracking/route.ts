@@ -8,7 +8,6 @@ export async function POST(request: Request) {
     const keyword = String(body?.keyword || "").trim();
     const recaptchaToken = body?.recaptchaToken || null;
 
-    // 1. Verifikasi reCAPTCHA
     const lolos = await verifyRecaptcha(recaptchaToken);
     if (!lolos) {
       return NextResponse.json(
@@ -17,7 +16,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Validasi resi
     if (!keyword) {
       return NextResponse.json(
         { error: "Nomor resi wajib diisi" },
@@ -25,11 +23,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Panggil server pelacakan internal
     const data = await mintaTracking(keyword);
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
-    // Bongkar pesan error asli saat development agar mudah debug
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[TRACKING] ERROR:", msg);
 

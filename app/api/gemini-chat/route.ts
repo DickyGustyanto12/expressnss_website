@@ -17,7 +17,6 @@ import {
   type PesanRiwayat,
 } from "@/lib/internal/chatbot-ai";
 
-// Sesi chat sah = conversationId + token rahasia dari /api/live-chat/start
 async function ambilSesi(conversationId: number, token: string) {
   if (!conversationId || !token) return null;
   const hash = crypto.createHash("sha256").update(token).digest("hex");
@@ -28,7 +27,6 @@ async function ambilSesi(conversationId: number, token: string) {
   return rows[0] ?? null;
 }
 
-// Jawaban tanpa AI (gratis): ongkir/lacak dari data real time, lalu Knowledge Base
 async function jawabanCadangan(pesan: string, riwayat: PesanRiwayat[]) {
   try {
     const realtime = await jawabDataRealtime(pesan, riwayat);
@@ -40,9 +38,6 @@ async function jawabanCadangan(pesan: string, riwayat: PesanRiwayat[]) {
   }
 }
 
-// =====================================================
-// HANDLER UTAMA
-// =====================================================
 export async function POST(req: Request) {
   const t0 = Date.now();
 
@@ -77,7 +72,6 @@ export async function POST(req: Request) {
     }
     const nama = String(sesi.customer_name || "").split(" ")[0] || "Kak";
 
-    // ---------- 1. Customer marah / komplain / minta CS → langsung ke CS ----------
     const emosi = deteksiEskalasi(message);
     if (emosi) {
       console.log(
@@ -90,7 +84,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // ---------- 2. Limit token AI sesi ini ----------
     const pengaturanToken = await ambilPengaturanTokenAi();
     const statusLimit = await cekLimitSesi(conversationId, pengaturanToken);
     if (statusLimit.tercapai) {
@@ -106,7 +99,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // ---------- 3. Jawaban AI berdasarkan data real time ----------
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn(
@@ -149,7 +141,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // ---------- 4. Cadangan saat AI tidak tersedia ----------
     const cadangan = await jawabanCadangan(message, riwayat);
     return NextResponse.json({
       reply:

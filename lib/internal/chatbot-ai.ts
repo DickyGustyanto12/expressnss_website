@@ -10,16 +10,12 @@ import { pool } from "./db";
 import { ambilDaftarKota, hitungOngkir } from "./ongkir";
 import { lacakResi } from "./tracking";
 
-// Chatbot AI NSS Express: semua jawaban disusun Gemini berdasarkan data
-// database terbaru (diambil setiap pesan) + tools real time (ongkir, lacak
-// paket). Customer otomatis dialihkan ke CS manusia saat marah / komplain.
-
 const MODEL = "gemini-3.5-flash-lite";
 const BATAS_WAKTU_PANGGILAN_MS = 15_000;
 const MAKS_PUTARAN_TOOLS = 4;
 
 export interface PesanRiwayat {
-  pengirim: string; // "user" | "model"
+  pengirim: string;
   teks: string;
 }
 
@@ -31,9 +27,6 @@ export interface HasilChatbot {
   tokenOutput: number;
 }
 
-// =====================================================
-// JAM OPERASIONAL CS (WIB)
-// =====================================================
 export function csSedangBuka(): boolean {
   const jam = Number(
     new Intl.DateTimeFormat("en-GB", {
@@ -50,9 +43,6 @@ export const keteranganJamCs = () =>
     ? "Mohon tunggu sebentar ya, CS kami akan segera membalas di chat ini."
     : "CS kami aktif pukul 08.00–16.59 WIB. Pesan Kakak sudah kami terima dan akan dibalas pada jam operasional.";
 
-// =====================================================
-// DETEKSI EMOSI / KOMPLAIN (tanpa AI, instan)
-// =====================================================
 const POLA_MARAH =
   /\b(marah|kesal|kesel|kecewa|mengecewakan|jengkel|sebel|sebal|emosi|muak|geram|komplain|complain|keluhan|mengeluh|protes|laporkan|tanggung ?jawab|ganti ?rugi|refund|uang (saya )?(kembali|balik)|penipu|nipu|menipu|ditipu|tipu|bohong|scam|payah|lelet|ga becus|gak becus|nggak becus|tidak becus|pelayanan (buruk|jelek)|buruk sekali)\b/i;
 const POLA_KASAR =
@@ -90,9 +80,6 @@ export function pesanEskalasi(
   return `${pembuka}\n${keteranganJamCs()}`;
 }
 
-// =====================================================
-// DATA REAL TIME UNTUK KONTEKS AI (diambil setiap pesan)
-// =====================================================
 async function ambilKonteks() {
   const [[settingRows], [kbRows], [cabangRows], [infoRows], kota] =
     await Promise.all([
@@ -204,9 +191,6 @@ DATA TERBARU — KNOWLEDGE BASE (jawaban resmi perusahaan):
 ${k.kb}`;
 }
 
-// =====================================================
-// TOOLS (dipanggil AI, dijalankan ke database / server tracking)
-// =====================================================
 const TOOLS: FunctionDeclaration[] = [
   {
     name: "cek_ongkir",
@@ -336,7 +320,6 @@ async function jalankanTool(
   return { status: "tool_tidak_dikenal" };
 }
 
-// Riwayat Gemini wajib dimulai "user" dan bergantian user/model
 function susunRiwayat(riwayat: PesanRiwayat[]): Content[] {
   const hasil: Content[] = [];
   for (const p of riwayat.slice(-12)) {
@@ -351,7 +334,6 @@ function susunRiwayat(riwayat: PesanRiwayat[]): Content[] {
   return hasil;
 }
 
-// Bersihkan markdown & link yang lolos dari AI (chatbot tidak memberi link)
 const rapikanJawaban = (teks: string) =>
   teks
     .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, "$1")
@@ -361,9 +343,6 @@ const rapikanJawaban = (teks: string) =>
     .replace(/\*/g, "")
     .trim();
 
-// =====================================================
-// JAWAB DENGAN GEMINI + TOOLS
-// =====================================================
 export async function jawabDenganAI(params: {
   apiKey: string;
   pesan: string;
@@ -379,7 +358,6 @@ export async function jawabDenganAI(params: {
     generationConfig: { maxOutputTokens: 800, temperature: 0.3 },
   });
 
-  // Batas waktu sendiri (opsi timeout bawaan SDK membuat fetch gagal di Next.js)
   const panggilGemini = () =>
     Promise.race([
       model.generateContent({ contents }),
@@ -391,8 +369,6 @@ export async function jawabDenganAI(params: {
       ),
     ]);
 
-  // Percakapan disusun manual (bukan startChat): hasil tool dikirim dengan
-  // role "user", karena role "function" dari SDK lama ditolak model terbaru
   const contents = susunRiwayat([
     ...params.riwayat,
     { pengirim: "user", teks: params.pesan },
@@ -419,7 +395,6 @@ export async function jawabDenganAI(params: {
     const panggilan = hasil.response.functionCalls();
     if (!panggilan?.length) break;
 
-    // Simpan giliran model apa adanya (termasuk thoughtSignature)
     const bagianModel = hasil.response.candidates?.[0]?.content?.parts ?? [];
     contents.push({ role: "model", parts: bagianModel });
 
@@ -460,9 +435,6 @@ export async function jawabDenganAI(params: {
   };
 }
 
-// =====================================================
-// CADANGAN TANPA AI (limit habis / Gemini gagal): cari di Knowledge Base
-// =====================================================
 const KATA_UMUM = new Set([
   "yang",
   "dan",

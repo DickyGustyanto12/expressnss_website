@@ -1,6 +1,5 @@
 import mysql from "mysql2/promise";
 
-// Konfigurasi dari environment (.env / Docker). Default = setup lokal Laragon.
 export const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   port: Number(process.env.DB_PORT) || 3306,

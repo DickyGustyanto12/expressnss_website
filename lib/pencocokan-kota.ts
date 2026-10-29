@@ -1,8 +1,3 @@
-// Pencocokan nama kota yang toleran: tidak harus sama persis.
-// Contoh: "klaten" → "Kab. Klaten", "jogja" → "Kota Yogyakarta",
-// "semrang" (salah ketik) → "Semarang".
-
-// Nama populer / singkatan → nama baku (sudah dinormalisasi)
 const ALIAS_KOTA: Record<string, string> = {
   jogja: "yogyakarta",
   jogjakarta: "yogyakarta",
@@ -36,7 +31,6 @@ export function normalisasiKota(nama: string): string {
   return ALIAS_KOTA[dasar] ?? dasar;
 }
 
-// Jarak edit (Damerau): huruf tertukar seperti "kalten" dihitung 1 kesalahan
 function jarakEdit(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
@@ -67,7 +61,6 @@ function kemiripanKata(a: string, b: string): number {
   return panjang === 0 ? 0 : 1 - jarakEdit(a, b) / panjang;
 }
 
-// Jenis wilayah yang disebut: "kota" / "kab" / null
 function jenisWilayah(nama: string): "kota" | "kab" | null {
   const n = nama.toLowerCase();
   if (/\b(kab|kabupaten)\b/.test(n)) return "kab";
@@ -75,13 +68,11 @@ function jenisWilayah(nama: string): "kota" | "kab" | null {
   return null;
 }
 
-// Skor 0..1 seberapa mirip input pengguna dengan nama kota kandidat
 export function skorKemiripanKota(input: string, kandidat: string): number {
   const q = normalisasiKota(input);
   const k = normalisasiKota(kandidat);
   if (!q || !k) return 0;
 
-  // Pengguna menyebut "kota"/"kab" → utamakan jenis wilayah yang sama
   const jenisInput = jenisWilayah(input);
   const jenisKandidat = jenisWilayah(kandidat);
   const faktor =
@@ -93,12 +84,10 @@ export function skorKemiripanKota(input: string, kandidat: string): number {
 function skorNama(q: string, k: string): number {
   if (q === k) return 1;
 
-  // Awalan nama / awalan salah satu kata (min. 3 huruf), mis. "klat" → "klaten"
   if (q.length >= 3 && k.startsWith(q)) return 0.92;
   if (q.length >= 3 && ` ${k}`.includes(` ${q}`)) return 0.88;
   if (k.length >= 4 && ` ${q} `.includes(` ${k} `)) return 0.85;
 
-  // Bandingkan per kata agar "kota tegal" vs "tegal" & salah ketik tetap cocok
   const kataQ = q.split(" ");
   const kataK = k.split(" ");
   let total = 0;
@@ -119,8 +108,6 @@ function skorNama(q: string, k: string): number {
 
 export const AMBANG_KEMIRIPAN = 0.72;
 
-// Kandidat yang paling mirip (urut skor tertinggi). Hasil dengan skor
-// hampir sama dengan yang terbaik ikut dikembalikan (mis. Kab./Kota Magelang).
 export function cariKotaMirip(
   input: string,
   daftarKota: string[],
@@ -136,7 +123,6 @@ export function cariKotaMirip(
   return hasil.filter((h) => h.skor >= terbaik - 0.04).slice(0, batas);
 }
 
-// Saran untuk autocomplete (lebih longgar, tidak hanya yang terbaik)
 export function saranKota(
   input: string,
   daftarKota: string[],

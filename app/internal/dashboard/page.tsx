@@ -19,7 +19,6 @@ import Swal from "sweetalert2";
 
 import PesanMasuk from "./components/PesanMasuk";
 import TarifOngkir from "./components/TarifOngkir";
-// import BannerCarousel from "./components/BannerCarousel";
 import AiKnowledge from "./components/AiKnowledge";
 import UpdateCabang from "./components/UpdateCabang";
 import HeroBannerManager from "./components/HeroBannerManager";
@@ -45,7 +44,6 @@ export default function Dashboard() {
   const [cabangData, setCabangData] = useState<any[]>([]);
   const { targetConversationId } = useNotification();
 
-  // Notifikasi chat diklik → pindah ke menu Pesan Masuk
   useEffect(() => {
     if (targetConversationId !== null) {
       setMenuAktif("pesan");
@@ -63,12 +61,10 @@ export default function Dashboard() {
           email: parsedUser.email || "admin@nssexpress.com",
         });
       } catch {
-        // Diabaikan (tidak ditampilkan di console browser)
       }
     }
   }, []);
 
-  // Preview data dashboard: dimuat saat menu dibuka, lalu diperbarui berkala
   useEffect(() => {
     if (menuAktif !== "ringkasan") return;
 
@@ -85,7 +81,6 @@ export default function Dashboard() {
         if (bannerRes.ok) setBannerData(await bannerRes.json());
         if (cabangRes.ok) setCabangData(await cabangRes.json());
       } catch {
-        // Diabaikan (tidak ditampilkan di console browser)
       }
     };
 
@@ -233,21 +228,6 @@ export default function Dashboard() {
                 <ChevronRight size={18} className="text-gray-950" />
               </button>
 
-              {/*<button
-                onClick={() => setMenuAktif("carousel")}
-                className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
-                  menuAktif === "carousel"
-                    ? "bg-white text-gray-950 font-extrabold shadow-md border border-white translate-x-1"
-                    : "text-gray-950 hover:bg-white/40 hover:translate-x-1 font-bold"
-                }`}
-              >
-                <div className="flex items-center gap-3.5">
-                  <ImageIcon size={20} className="text-gray-950" />
-                  <span>Banner Carousel</span>
-                </div>
-                <ChevronRight size={18} className="text-gray-950" />
-              </button>*/}
-
               <button
                 onClick={() => setMenuAktif("knowledge")}
                 className={`w-full flex items-center justify-between px-4 py-4 rounded-sm text-base transition-all duration-300 ease-in-out cursor-pointer ${
@@ -359,7 +339,6 @@ export default function Dashboard() {
               />
 
               <div className="space-y-6">
-                {/* 1. Card Preview Cabang (dengan Kolom Link Maps) */}
                 <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-red-500 overflow-hidden w-full">
                   <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
@@ -447,7 +426,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* 2. Card Preview Tarif Ongkir */}
                 <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-blue-500 overflow-hidden w-full">
                   <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
@@ -513,7 +491,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* 3. Card Preview Banner Carousel */}
                 <div className="bg-white rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-green-500 overflow-hidden w-full">
                   <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
@@ -587,7 +564,6 @@ export default function Dashboard() {
             <PesanMasuk adminId={userData.id} adminName={userData.nama} />
           )}
           {menuAktif === "ongkir" && <TarifOngkir />}
-          {/* {menuAktif === "carousel" && <BannerCarousel />} */}
           {menuAktif === "knowledge" && (
             <AiKnowledge adminId={userData.id} adminName={userData.nama} />
           )}

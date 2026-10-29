@@ -45,7 +45,7 @@ interface ImportTarifExcelProps {
 
 interface BarisEdit {
   id: number;
-  baris: number | null; // nomor baris Excel, null jika ditambah manual
+  baris: number | null;
   kotaAsal: string;
   kotaTujuan: string;
   layanan: string;
@@ -100,9 +100,6 @@ const ImportTarifExcel = ({
     berat: "",
   });
 
-  // =====================================================
-  // MEMBACA FILE & SHEET
-  // =====================================================
   const muatBaris = (
     modul: XLSXModule,
     wb: WorkBook,
@@ -164,7 +161,6 @@ const ImportTarifExcel = ({
       setXLSX(modul);
       const wb = modul.read(await file.arrayBuffer());
 
-      // Utamakan sheet template / tarif reguler, jika ada
       const bisaDibaca = (n: string) => analisaSheet(modul, wb.Sheets[n]);
       const sheetAwal =
         wb.SheetNames.find(
@@ -196,7 +192,6 @@ const ImportTarifExcel = ({
     unduhTemplate(modul);
   };
 
-  // Perubahan pengaturan kolom memuat ulang data dari Excel
   const konfirmasiMuatUlang = async () => {
     if (!adaPerubahan) return true;
     const hasil = await Swal.fire({
@@ -237,9 +232,6 @@ const ImportTarifExcel = ({
     muatBaris(XLSX, workbook, namaSheet, analisa, pemetaan, nilai);
   };
 
-  // =====================================================
-  // EDIT BARIS
-  // =====================================================
   const ubahBaris = (
     id: number,
     field: keyof Omit<BarisEdit, "id" | "baris">,
@@ -277,9 +269,6 @@ const ImportTarifExcel = ({
     setAdaPerubahan(true);
   };
 
-  // =====================================================
-  // VALIDASI, FILTER & PENCARIAN
-  // =====================================================
   const statusBaris = useMemo(() => {
     const tarifAda = new Set(
       daftarTarif.map((t) => kunciTarif(t.kota_asal, t.kota_tujuan, t.layanan)),
@@ -384,9 +373,6 @@ const ImportTarifExcel = ({
     setAdaPerubahan(true);
   };
 
-  // =====================================================
-  // SIMPAN
-  // =====================================================
   const handleImport = async () => {
     const konfirmasi = await Swal.fire({
       title: "Import Tarif?",
@@ -444,9 +430,6 @@ const ImportTarifExcel = ({
     }
   };
 
-  // =====================================================
-  // TAMPILAN
-  // =====================================================
   const contohFormat = (
     <div className="border border-yellow-200 bg-yellow-50/60 rounded-lg p-4 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -592,7 +575,6 @@ const ImportTarifExcel = ({
             </>
           ) : (
             <>
-              {/* File & tombol contoh */}
               <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-xs shrink-0">
                 <span className="font-bold text-gray-800 truncate flex items-center gap-1.5">
                   <FileSpreadsheet
@@ -627,7 +609,6 @@ const ImportTarifExcel = ({
 
               {tampilkanContoh && contohFormat}
 
-              {/* Pengaturan kolom */}
               <div className="border border-gray-200 rounded-lg p-3 shrink-0">
                 <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">
                   Pengaturan Kolom
@@ -747,7 +728,6 @@ const ImportTarifExcel = ({
                 </div>
               ) : (
                 <>
-                  {/* Ubah massal */}
                   <div className="border border-gray-200 rounded-lg p-3 shrink-0">
                     <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">
                       Ubah Massal{" "}
@@ -815,7 +795,6 @@ const ImportTarifExcel = ({
                     </div>
                   </div>
 
-                  {/* Pencarian, filter & ringkasan */}
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <div className="flex items-center bg-gray-100 rounded-md px-3 py-2 border border-gray-200 focus-within:border-yellow-400 focus-within:bg-white transition-all flex-1 min-w-48">
                       <Search size={14} className="text-gray-400 mr-2" />
@@ -885,7 +864,6 @@ const ImportTarifExcel = ({
                     </span>
                   </div>
 
-                  {/* Tabel editable */}
                   <div className="border border-gray-200 rounded-md overflow-auto min-h-72 flex-1">
                     <table className="w-full text-left text-xs text-gray-600">
                       <thead className="bg-gray-50 text-gray-900 uppercase font-bold sticky top-0 border-b border-gray-200 z-10">

@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
 import type { RowDataPacket } from "mysql2";
 
-// Aksi per sesi:
-// { aksi: "atur-limit", mode: "rupiah" | "token", limit: number | null }  → null = kembali ke default
-// { aksi: "reset" }                                                       → nol-kan pemakaian sesi
 export async function PUT(
   req: NextRequest,
   ctx: RouteContext<"/api/ai-token-limit/sesi/[id]">,

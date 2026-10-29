@@ -35,13 +35,11 @@ const ReCaptcha = ({ onChange }: ReCaptchaProps) => {
       });
     };
 
-    // Script sudah ada? Langsung render
     if (window.grecaptcha?.render) {
       render();
       return;
     }
 
-    // Muat script reCAPTCHA sekali
     window.recaptchaOnLoad = render;
     const script = document.createElement("script");
     script.src =
