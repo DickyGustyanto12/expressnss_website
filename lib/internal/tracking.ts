@@ -23,7 +23,9 @@ export function mintaTracking(nomorResi: string): Promise<unknown> {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
           "Content-Length": Buffer.byteLength(body),
+          "User-Agent": "Thunder Client (https://www.thunderclient.com)",
         },
         agent: url.protocol === "https:" ? agenTracking : undefined,
         timeout: BATAS_WAKTU_MS,
@@ -33,7 +35,12 @@ export function mintaTracking(nomorResi: string): Promise<unknown> {
         res.setEncoding("utf8");
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
-          if (!res.statusCode || res.statusCode >= 400) {
+          // Tangkap error jika HTTP status code 300 ke atas (termasuk 502, 404, dll)
+          if (!res.statusCode || res.statusCode >= 300) {
+            console.error(
+              `[TRACKING] Server merespons HTTP ${res.statusCode}. RAW DATA:`,
+              data.substring(0, 300)
+            );
             reject(
               new Error(
                 `Server internal merespons dengan status: ${res.statusCode}`,
@@ -41,14 +48,23 @@ export function mintaTracking(nomorResi: string): Promise<unknown> {
             );
             return;
           }
+          
           try {
-            resolve(JSON.parse(data));
-          } catch {
+            // PERBAIKAN UTAMA: Bersihkan karakter Enter/Newline asli yang merusak format JSON
+            const dataBersih = data.replace(/[\r\n\t]+/g, " ");
+            
+            resolve(JSON.parse(dataBersih));
+          } catch (err) {
+            console.error(
+              "[TRACKING] Gagal parse JSON. RAW DATA:",
+              data.substring(0, 500)
+            );
             reject(new Error("Respons server tracking bukan JSON"));
           }
         });
       },
     );
+    
     req.on("timeout", () => req.destroy(new Error("Timeout server tracking")));
     req.on("error", reject);
     req.end(body);
@@ -74,6 +90,7 @@ export async function lacakResi(nomorResi: string): Promise<HasilLacak> {
       Detail?: Record<string, unknown>[];
     };
     const detail = Array.isArray(data?.Detail) ? data.Detail : [];
+    
     if (detail.length === 0) return { status: "tidak-ditemukan", resi };
 
     return {

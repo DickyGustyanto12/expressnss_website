@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   AlertCircle,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -86,11 +88,24 @@ const Tracking = () => {
       setIsModalLoading(false);
 
       if (data && data.Detail && data.Detail.length > 0) {
+        // Ambil data Master untuk informasi Pengirim & Penerima
+        const dataMaster = data.Master && data.Master.length > 0 ? data.Master[0] : null;
+
         setHasilTracking({
           awb: kataKunci.trim(),
           status: data.Detail[0].Keterangan || "Dalam Proses",
-          pengirim: { nama: "NSS Express Center" },
-          penerima: { nama: data.Detail[0].Nama || "-" },
+          pengirim: { 
+            nama: dataMaster?.NamaPengirim || "Tidak Diketahui",
+            alamat: dataMaster?.AlamatPengirim || "",
+            noHp: dataMaster?.NoHpPengirim || "",
+            email: dataMaster?.EmailPengirim || "",
+          },
+          penerima: { 
+            nama: dataMaster?.NamaPenerima || "-",
+            alamat: dataMaster?.AlamatPenerima || "",
+            noHp: dataMaster?.NoHpPenerima || "",
+            email: dataMaster?.EmailPenerima || "",
+          },
           riwayat: data.Detail.map((item: any) => ({
             tanggal: item.Tanggal || "",
             jam: item.Jam || "",
@@ -266,31 +281,81 @@ const Tracking = () => {
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-                    <div className="bg-gray-50 p-5 rounded-sm border border-gray-200 shadow-xs flex items-center gap-4">
-                      <div className="w-12 h-12 bg-yellow-100 text-yellow-800 rounded-sm flex items-center justify-center shrink-0">
+                    {/* Kotak Pengirim */}
+                    <div className="bg-gray-50 p-5 rounded-sm border border-gray-200 shadow-xs flex items-start gap-4 h-full">
+                      <div className="w-12 h-12 bg-yellow-100 text-yellow-800 rounded-sm flex items-center justify-center shrink-0 mt-1">
                         <User size={22} />
                       </div>
-                      <div>
+                      <div className="w-full">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
                           Pengirim
                         </span>
-                        <span className="text-sm font-extrabold text-gray-900">
+                        <span className="text-sm font-extrabold text-gray-900 block">
                           {hasilTracking.pengirim.nama}
                         </span>
+                        
+                        {hasilTracking.pengirim.alamat && (
+                          <span className="text-xs text-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.pengirim.alamat}>
+                            {hasilTracking.pengirim.alamat}
+                          </span>
+                        )}
+
+                        {/* Kontak Pengirim */}
+                        {(hasilTracking.pengirim.noHp || (hasilTracking.pengirim.email && hasilTracking.pengirim.email !== "000000")) && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
+                            {hasilTracking.pengirim.noHp && hasilTracking.pengirim.noHp !== "-" && (
+                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                                <Phone size={13} className="text-gray-400 shrink-0" />
+                                <span>{hasilTracking.pengirim.noHp}</span>
+                              </div>
+                            )}
+                            {hasilTracking.pengirim.email && hasilTracking.pengirim.email !== "-" && hasilTracking.pengirim.email !== "000000" && (
+                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                                <Mail size={13} className="text-gray-400 shrink-0" />
+                                <span className="truncate">{hasilTracking.pengirim.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 p-5 rounded-sm border border-gray-200 shadow-xs flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-100 text-blue-800 rounded-sm flex items-center justify-center shrink-0">
+                    {/* Kotak Penerima */}
+                    <div className="bg-gray-50 p-5 rounded-sm border border-gray-200 shadow-xs flex items-start gap-4 h-full">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-800 rounded-sm flex items-center justify-center shrink-0 mt-1">
                         <User size={22} />
                       </div>
-                      <div>
+                      <div className="w-full">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
                           Penerima
                         </span>
-                        <span className="text-sm font-extrabold text-gray-900">
+                        <span className="text-sm font-extrabold text-gray-900 block">
                           {hasilTracking.penerima.nama}
                         </span>
+
+                        {hasilTracking.penerima.alamat && (
+                          <span className="text-xs text-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.penerima.alamat}>
+                            {hasilTracking.penerima.alamat}
+                          </span>
+                        )}
+
+                        {/* Kontak Penerima */}
+                        {(hasilTracking.penerima.noHp || (hasilTracking.penerima.email && hasilTracking.penerima.email !== "000000")) && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
+                            {hasilTracking.penerima.noHp && hasilTracking.penerima.noHp !== "-" && (
+                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                                <Phone size={13} className="text-gray-400 shrink-0" />
+                                <span>{hasilTracking.penerima.noHp}</span>
+                              </div>
+                            )}
+                            {hasilTracking.penerima.email && hasilTracking.penerima.email !== "-" && hasilTracking.penerima.email !== "000000" && (
+                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                                <Mail size={13} className="text-gray-400 shrink-0" />
+                                <span className="truncate">{hasilTracking.penerima.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
