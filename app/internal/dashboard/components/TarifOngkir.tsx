@@ -11,6 +11,8 @@ import {
   Loader2,
   ChevronDown,
   FileSpreadsheet,
+  Settings,
+  Clock,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import ImportTarifExcel from "./ImportTarifExcel";
@@ -24,7 +26,11 @@ interface TarifItem {
   harga_ongkir: number;
 }
 
-const layananOptions = ["REGULER", "NEXT"];
+interface LayananItem {
+  id: number;
+  nama_layanan: string;
+  estimasi: string;
+}
 
 const TarifOngkir = () => {
   const [daftarTarif, setDaftarTarif] = useState<TarifItem[]>([]);
@@ -36,7 +42,7 @@ const TarifOngkir = () => {
   const [formId, setFormId] = useState<number | null>(null);
   const [formAsal, setFormAsal] = useState("");
   const [formTujuan, setFormTujuan] = useState("");
-  const [formLayanan, setFormLayanan] = useState("REGULER");
+  const [formLayanan, setFormLayanan] = useState("");
   const [dropdownBuka, setDropdownBuka] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [formBerat, setFormBerat] = useState("");
@@ -44,26 +50,47 @@ const TarifOngkir = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalImportBuka, setModalImportBuka] = useState(false);
 
+  const [daftarLayanan, setDaftarLayanan] = useState<LayananItem[]>([]);
+  const [modalLayananBuka, setModalLayananBuka] = useState(false);
+  const [isLayananLoading, setIsLayananLoading] = useState(false);
+  const [modeEditLayanan, setModeEditLayanan] = useState(false);
+  const [formLayananId, setFormLayananId] = useState<number | null>(null);
+  const [formNamaLayanan, setFormNamaLayanan] = useState("");
+  const [formEstimasi, setFormEstimasi] = useState("");
+
+  const layananOptions = daftarLayanan.map((l) => l.nama_layanan);
+
   const ambilDataTarif = async () => {
     try {
       setIsLoading(true);
       const response = await fetch("/api/tarif-ongkir");
+      if (!response.ok) throw new Error("Gagal memuat data tarif");
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Gagal memuat data tarif");
-      }
-
       setDaftarTarif(data);
     } catch (error: any) {
-      Swal.fire("Error", error.message, "error");
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const ambilDataLayanan = async () => {
+    try {
+      setIsLayananLoading(true);
+      const response = await fetch("/api/layanan");
+      if (!response.ok) throw new Error("Gagal memuat data layanan_estimasi");
+      const data = await response.json();
+      setDaftarLayanan(data);
+    } catch (error: any) {
+      console.error(error);
+    } finally {
+      setIsLayananLoading(false);
+    }
+  };
+
   useEffect(() => {
     ambilDataTarif();
+    ambilDataLayanan();
   }, []);
 
   const tarifTersaring = daftarTarif.filter(
@@ -78,7 +105,7 @@ const TarifOngkir = () => {
     setFormId(null);
     setFormAsal("");
     setFormTujuan("");
-    setFormLayanan("REGULER");
+    setFormLayanan(layananOptions[0] || "");
     setSelectedIndex(0);
     setFormBerat("");
     setFormHarga("");
@@ -103,7 +130,7 @@ const TarifOngkir = () => {
     setModalFormBuka(true);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDownDropdown = (e: React.KeyboardEvent) => {
     if (!dropdownBuka) {
       if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -122,7 +149,9 @@ const TarifOngkir = () => {
       );
     } else if (e.key === "Enter") {
       e.preventDefault();
-      setFormLayanan(layananOptions[selectedIndex]);
+      if (layananOptions[selectedIndex]) {
+        setFormLayanan(layananOptions[selectedIndex]);
+      }
       setDropdownBuka(false);
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -130,13 +159,12 @@ const TarifOngkir = () => {
     }
   };
 
-  const handleSimpanData = async (e: React.FormEvent) => {
+  const handleSimpanTarif = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (
       !formAsal.trim() ||
       !formTujuan.trim() ||
-      !formLayanan ||
+      !formLayanan.trim() ||
       !formBerat ||
       !formHarga
     ) {
@@ -145,7 +173,6 @@ const TarifOngkir = () => {
         text: "Semua kolom wajib diisi dengan benar!",
         icon: "warning",
         confirmButtonColor: "#FFCC00",
-        color: "#1f2937",
       });
       return;
     }
@@ -154,22 +181,14 @@ const TarifOngkir = () => {
       setIsSubmitting(true);
       const url = "/api/tarif-ongkir";
       const method = modeEdit ? "PUT" : "POST";
-      const bodyData = modeEdit
-        ? {
-            id: formId,
-            kota_asal: formAsal,
-            kota_tujuan: formTujuan,
-            layanan: formLayanan,
-            berat: Number(formBerat),
-            harga_ongkir: Number(formHarga),
-          }
-        : {
-            kota_asal: formAsal,
-            kota_tujuan: formTujuan,
-            layanan: formLayanan,
-            berat: Number(formBerat),
-            harga_ongkir: Number(formHarga),
-          };
+      const bodyData = {
+        id: formId,
+        kota_asal: formAsal.toUpperCase(),
+        kota_tujuan: formTujuan.toUpperCase(),
+        layanan: formLayanan.toUpperCase(),
+        berat: Number(formBerat),
+        harga_ongkir: Number(formHarga),
+      };
 
       const response = await fetch(url, {
         method,
@@ -178,19 +197,13 @@ const TarifOngkir = () => {
       });
 
       const resData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(resData.error || "Gagal menyimpan data tarif");
-      }
+      if (!response.ok) throw new Error(resData.error || "Gagal menyimpan");
 
       Swal.fire({
         title: "Berhasil!",
-        text: modeEdit
-          ? "Data tarif berhasil diperbarui."
-          : "Data tarif baru berhasil ditambahkan.",
+        text: modeEdit ? "Data tarif diperbarui." : "Tarif baru ditambahkan.",
         icon: "success",
         confirmButtonColor: "#FFCC00",
-        color: "#1f2937",
       });
 
       setModalFormBuka(false);
@@ -202,28 +215,22 @@ const TarifOngkir = () => {
     }
   };
 
-  const handleHapus = (id: number) => {
+  const handleHapusTarif = (id: number) => {
     Swal.fire({
       title: "Hapus Tarif?",
-      text: "Data tarif ongkir ini akan dihapus permanen dari sistem.",
+      text: "Data tarif ongkir ini akan dihapus permanen.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d33",
       cancelButtonColor: "#3085d6",
       confirmButtonText: "Ya, Hapus!",
-      cancelButtonText: "Batal",
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
           const response = await fetch(`/api/tarif-ongkir?id=${id}`, {
             method: "DELETE",
           });
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || "Gagal menghapus data");
-          }
-
+          if (!response.ok) throw new Error("Gagal menghapus data");
           Swal.fire("Terhapus!", "Data tarif berhasil dihapus.", "success");
           ambilDataTarif();
         } catch (error: any) {
@@ -233,19 +240,103 @@ const TarifOngkir = () => {
     });
   };
 
+  const resetFormLayanan = () => {
+    setModeEditLayanan(false);
+    setFormLayananId(null);
+    setFormNamaLayanan("");
+    setFormEstimasi("");
+  };
+
+  const handleSimpanLayanan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formNamaLayanan.trim() || !formEstimasi.trim()) {
+      Swal.fire("Peringatan", "Nama layanan dan estimasi wajib diisi", "warning");
+      return;
+    }
+
+    try {
+      setIsLayananLoading(true);
+      const url = "/api/layanan";
+      const method = modeEditLayanan ? "PUT" : "POST";
+      const bodyData = {
+        id: formLayananId,
+        nama_layanan: formNamaLayanan.toUpperCase(),
+        estimasi: formEstimasi,
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyData),
+      });
+
+      if (!response.ok) throw new Error("Gagal menyimpan data ke database layanan_estimasi");
+
+      resetFormLayanan();
+      ambilDataLayanan();
+      Swal.fire("Berhasil", "Data layanan_estimasi berhasil disinkronkan", "success");
+    } catch (error: any) {
+      Swal.fire("Gagal", error.message, "error");
+    } finally {
+      setIsLayananLoading(false);
+    }
+  };
+
+  const handleHapusLayanan = (id: number) => {
+    Swal.fire({
+      title: "Hapus Layanan?",
+      text: "Data dari tabel layanan_estimasi akan dihapus.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Ya, Hapus",
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          setIsLayananLoading(true);
+          const response = await fetch(`/api/layanan?id=${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) throw new Error("Gagal menghapus layanan");
+          
+          ambilDataLayanan();
+          Swal.fire("Terhapus!", "Data layanan_estimasi berhasil dihapus.", "success");
+        } catch (error: any) {
+          Swal.fire("Gagal", error.message, "error");
+        } finally {
+          setIsLayananLoading(false);
+        }
+      }
+    });
+  };
+
+  const bukaEditLayanan = (item: LayananItem) => {
+    setModeEditLayanan(true);
+    setFormLayananId(item.id);
+    setFormNamaLayanan(item.nama_layanan);
+    setFormEstimasi(item.estimasi);
+  };
+
   return (
     <div className="space-y-2 h-full flex flex-col">
       <div className="bg-white px-5 py-3 rounded-sm shadow-sm border border-gray-200 border-t-4 border-t-[#FFCC00] shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h2 className="text-base font-extrabold text-gray-900">
-            Manajemen Tarif Ongkir
+            Manajemen Tarif Ongkir & Estimasi
           </h2>
           <p className="text-xs text-gray-500">
-            Kelola daftar harga ongkos kirim antar kota untuk layanan NSS
-            Express.
+            Kelola daftar harga ongkos kirim dan sinkronisasi data dari tabel layanan_estimasi.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setModalLayananBuka(true)}
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+          >
+            <Settings size={16} />
+            <span>Ubah Estimasi Hari Layanan</span>
+          </button>
           <button
             onClick={() => setModalImportBuka(true)}
             className="bg-white hover:bg-green-50 text-green-700 border border-green-300 font-extrabold px-4 py-2 rounded-md text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
@@ -284,36 +375,30 @@ const TarifOngkir = () => {
                 <th className="px-5 py-3">Kota Asal</th>
                 <th className="px-5 py-3">Kota Tujuan</th>
                 <th className="px-5 py-3">Layanan</th>
-                <th className="px-5 py-3">Berat (Kg)</th>
-                <th className="px-5 py-3">Harga / Kg</th>
+                <th className="px-5 py-3">Koli / Berat</th>
+                <th className="px-5 py-3">Harga</th>
                 <th className="px-5 py-3 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-8 text-center text-gray-400"
-                  >
-                    Memuat data tarif...
+                  <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      Memuat data tarif...
+                    </div>
                   </td>
                 </tr>
               ) : tarifTersaring.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-8 text-center text-gray-400"
-                  >
+                  <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
                     Tidak ada data tarif ongkir yang ditemukan.
                   </td>
                 </tr>
               ) : (
                 tarifTersaring.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 font-bold text-gray-900 flex items-center gap-1.5">
                       <Truck size={14} className="text-yellow-600" />
                       {item.kota_asal}
@@ -322,18 +407,12 @@ const TarifOngkir = () => {
                       {item.kota_tujuan}
                     </td>
                     <td className="px-5 py-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-sm font-bold text-[10px] ${
-                          item.layanan === "REGULER"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                      >
+                      <span className="px-2 py-0.5 rounded-sm font-bold text-[10px] bg-gray-100 text-gray-800 border border-gray-200">
                         {item.layanan}
                       </span>
                     </td>
                     <td className="px-5 py-3 font-semibold text-gray-800">
-                      {item.berat ?? 0} Kg
+                      {item.berat ?? 0}
                     </td>
                     <td className="px-5 py-3 font-black text-gray-950">
                       Rp {Number(item.harga_ongkir).toLocaleString("id-ID")}
@@ -348,7 +427,7 @@ const TarifOngkir = () => {
                           <Edit size={14} />
                         </button>
                         <button
-                          onClick={() => handleHapus(item.id)}
+                          onClick={() => handleHapusTarif(item.id)}
                           className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-sm transition-colors cursor-pointer"
                           title="Hapus"
                         >
@@ -378,31 +457,25 @@ const TarifOngkir = () => {
               {modeEdit ? "Edit Tarif Ongkir" : "Tambah Tarif Ongkir Baru"}
             </h3>
 
-            <form onSubmit={handleSimpanData} className="space-y-4">
+            <form onSubmit={handleSimpanTarif} className="space-y-4">
               <div className="relative">
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Layanan Pengiriman
+                  Pilih Layanan (Sinkron dari database layanan_estimasi)
                 </label>
                 <button
                   type="button"
                   onClick={() => setDropdownBuka(!dropdownBuka)}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={handleKeyDownDropdown}
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-xs font-bold text-gray-800 cursor-pointer flex justify-between items-center transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 >
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] ${
-                      formLayanan === "REGULER"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}
-                  >
-                    {formLayanan}
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-gray-100 border border-gray-200 text-gray-800">
+                    {formLayanan || "-- Pilih Layanan --"}
                   </span>
                   <ChevronDown size={14} className="text-gray-500" />
                 </button>
 
                 {dropdownBuka && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 overflow-hidden py-1">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 overflow-hidden py-1 max-h-40 overflow-y-auto">
                     {layananOptions.map((opt, idx) => (
                       <div
                         key={opt}
@@ -415,17 +488,16 @@ const TarifOngkir = () => {
                           selectedIndex === idx ? "bg-gray-50" : ""
                         }`}
                       >
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            opt === "REGULER"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 border border-gray-200 text-gray-800">
                           {opt}
                         </span>
                       </div>
                     ))}
+                    {layananOptions.length === 0 && (
+                      <div className="px-3 py-2.5 text-xs text-gray-500 italic">
+                        Belum ada data di tabel layanan_estimasi.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -438,8 +510,8 @@ const TarifOngkir = () => {
                   type="text"
                   value={formAsal}
                   onChange={(e) => setFormAsal(e.target.value)}
-                  placeholder="Contoh: Jakarta"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  placeholder="Contoh: SEMARANG"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 uppercase"
                   required
                 />
               </div>
@@ -452,15 +524,15 @@ const TarifOngkir = () => {
                   type="text"
                   value={formTujuan}
                   onChange={(e) => setFormTujuan(e.target.value)}
-                  placeholder="Contoh: Bandung"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  placeholder="Contoh: JAKARTA"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 uppercase"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Berat (Kg)
+                  Total Koli / Berat
                 </label>
                 <input
                   type="number"
@@ -475,7 +547,7 @@ const TarifOngkir = () => {
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Harga / Kg (Rp)
+                  Harga (Rp)
                 </label>
                 <input
                   type="number"
@@ -508,6 +580,137 @@ const TarifOngkir = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {modalLayananBuka && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
+            <button
+              onClick={() => {
+                setModalLayananBuka(false);
+                resetFormLayanan();
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+
+            <h3 className="text-lg font-extrabold text-gray-900 mb-1">
+              CRUD Database: layanan_estimasi
+            </h3>
+            <p className="text-xs text-gray-500 mb-5">
+              Kelola nama layanan dan estimasi hari langsung ke tabel database layanan_estimasi.
+            </p>
+
+            <form onSubmit={handleSimpanLayanan} className="bg-gray-50 p-4 rounded-md border border-gray-200 mb-5 shrink-0">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Nama Layanan
+                  </label>
+                  <input
+                    type="text"
+                    value={formNamaLayanan}
+                    onChange={(e) => setFormNamaLayanan(e.target.value.toUpperCase())}
+                    placeholder="Contoh: REGULER"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 uppercase"
+                    required
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Estimasi Hari
+                  </label>
+                  <input
+                    type="text"
+                    value={formEstimasi}
+                    onChange={(e) => setFormEstimasi(e.target.value)}
+                    placeholder="Contoh: 2-3 Hari Kerja"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    required
+                  />
+                </div>
+                <div className="sm:col-span-1 flex flex-col gap-1">
+                  <button
+                    type="submit"
+                    disabled={isLayananLoading}
+                    className="w-full bg-black hover:bg-gray-800 text-white font-extrabold py-2 rounded-md text-xs transition-colors cursor-pointer flex items-center justify-center h-[34px]"
+                  >
+                    {modeEditLayanan ? "Update" : "Tambah"}
+                  </button>
+                  {modeEditLayanan && (
+                    <button
+                      type="button"
+                      onClick={resetFormLayanan}
+                      className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-extrabold py-1 rounded-md text-[10px] transition-colors cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+
+            <div className="flex-1 overflow-y-auto border border-gray-200 rounded-md min-h-[200px]">
+              <table className="w-full text-left text-xs text-gray-600">
+                <thead className="bg-gray-100 text-gray-900 uppercase font-bold sticky top-0 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2.5">Nama Layanan</th>
+                    <th className="px-4 py-2.5">Estimasi Hari</th>
+                    <th className="px-4 py-2.5 text-center w-24">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {isLayananLoading && daftarLayanan.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                        Memuat data dari database...
+                      </td>
+                    </tr>
+                  ) : daftarLayanan.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400">
+                        Belum ada data di tabel layanan_estimasi.
+                      </td>
+                    </tr>
+                  ) : (
+                    daftarLayanan.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-bold text-gray-900">
+                          <span className="px-2 py-0.5 rounded-sm text-[10px] bg-gray-200 border border-gray-300 text-gray-800 inline-block">
+                            {item.nama_layanan}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-gray-800 flex items-center gap-1.5 mt-1">
+                          <Clock size={12} className="text-gray-400" />
+                          {item.estimasi}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => bukaEditLayanan(item)}
+                              className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-sm cursor-pointer"
+                              title="Edit"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleHapusLayanan(item.id)}
+                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-sm cursor-pointer"
+                              title="Hapus"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

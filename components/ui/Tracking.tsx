@@ -88,12 +88,81 @@ const Tracking = () => {
       setIsModalLoading(false);
 
       if (data && data.Detail && data.Detail.length > 0) {
-        // Ambil data Master untuk informasi Pengirim & Penerima
         const dataMaster = data.Master && data.Master.length > 0 ? data.Master[0] : null;
+
+        // Set untuk menyimpan kombinasi (Status + Tanggal + Jam) yang sudah pernah diproses
+        const dataSudahAda = new Set();
+
+        // PARSER, FILTER & DEDUPLIKASI CUSTOM
+        const parsedRiwayat = data.Detail.reduce((acc: any[], item: any, index: number) => {
+          const aktData = String(item.Aktdata || item.aktdata || "").toLowerCase();
+          const aktType = String(item.Akttype || item.akttype || "").toLowerCase();
+
+          let keteranganText = "";
+          let rank = 0;
+          let isValid = true; 
+
+          if (aktData === "jual" || aktType === "jual") {
+            keteranganText = "Resi telah diterbitkan.";
+            rank = 1;
+          } else if (aktData === "pstjl" || aktData === "603") {
+            keteranganText = "Barang sedang disiapkan.";
+            rank = 2;
+          } else if (aktData === "trmexp2" || aktData === "trmepxp2" || aktData === "458" || aktData === "470") {
+            keteranganText = "Barang sedang disortir.";
+            rank = 3;
+          } else if (aktData === "tpenugasan" || aktData === "472" || aktData === "460") {
+            keteranganText = "Barang sedang dikirim ke alamat tujuan penerima.";
+            rank = 4;
+          } else if (aktData === "kirim" || aktData === "473" || aktData === "461") {
+            const ketAsli = item.Keterangan ? String(item.Keterangan).trim() : "";
+            keteranganText = ketAsli && ketAsli.length > 1
+              ? `Barang telah diterima oleh: ${ketAsli}`
+              : "Barang telah diterima dengan baik.";
+            rank = 5;
+          } else if (aktData === "balik") {
+            keteranganText = "Pengiriman barang ke tujuan mengalami kendala operasional.";
+            rank = 6;
+          } else {
+            // Drop data di luar status yang ditentukan
+            isValid = false;
+          }
+
+          const tanggal = item.Tanggal || "";
+          const jam = item.Jam || "";
+
+          // Membuat kunci unik (Contoh: "Barang sedang disortir.-2024-11-05-14:30:00")
+          const kunciUnik = `${keteranganText}-${tanggal}-${jam}`;
+
+          // Cek apakah kombinasi Keterangan, Tanggal, dan Jam ini sudah ada di Set
+          if (isValid && !dataSudahAda.has(kunciUnik)) {
+            dataSudahAda.add(kunciUnik); // Tandai bahwa kombinasi ini sudah dimasukkan
+            acc.push({
+              tanggal: tanggal,
+              jam: jam,
+              keterangan: keteranganText,
+              _rank: rank,
+              _originalIndex: index
+            });
+          }
+          
+          return acc;
+        }, []);
+
+        // Mengurutkan riwayat berdasarkan urutan rank (1 -> 6)
+        parsedRiwayat.sort((a: any, b: any) => {
+          if (a._rank !== b._rank) return a._rank - b._rank;
+          return a._originalIndex - b._originalIndex;
+        });
+
+        // Teks untuk badge hijau di atas (mengambil status terakhir)
+        const statusKeseluruhan = parsedRiwayat.length > 0 
+          ? parsedRiwayat[parsedRiwayat.length - 1].keterangan 
+          : "Resi telah diterbitkan";
 
         setHasilTracking({
           awb: kataKunci.trim(),
-          status: data.Detail[0].Keterangan || "Dalam Proses",
+          status: statusKeseluruhan,
           pengirim: { 
             nama: dataMaster?.NamaPengirim || "Tidak Diketahui",
             alamat: dataMaster?.AlamatPengirim || "",
@@ -106,11 +175,7 @@ const Tracking = () => {
             noHp: dataMaster?.NoHpPenerima || "",
             email: dataMaster?.EmailPenerima || "",
           },
-          riwayat: data.Detail.map((item: any) => ({
-            tanggal: item.Tanggal || "",
-            jam: item.Jam || "",
-            keterangan: item.Keterangan || "",
-          })),
+          riwayat: parsedRiwayat, 
         });
         setErrorMsg("");
       } else {
@@ -364,23 +429,29 @@ const Tracking = () => {
                     Riwayat Perjalanan
                   </h4>
 
-                  <div className="space-y-6 border-l-2 border-yellow-400 pl-6 ml-3 my-4">
-                    {hasilTracking.riwayat.map((item: any, idx: number) => (
-                      <div key={idx} className="relative">
-                        <div className="absolute -left-[31px] top-1 w-4 h-4 bg-[#FFCC00] rounded-sm border-4 border-white shadow-md"></div>
-                        <div className="text-xs text-gray-500 font-semibold flex items-center gap-2 mb-1">
-                          <span>{item.tanggal}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 text-gray-600 font-bold">
-                            <Clock size={13} /> {item.jam}
-                          </span>
+                  {hasilTracking.riwayat.length > 0 ? (
+                    <div className="space-y-6 border-l-2 border-yellow-400 pl-6 ml-3 my-4">
+                      {hasilTracking.riwayat.map((item: any, idx: number) => (
+                        <div key={idx} className="relative">
+                          <div className="absolute -left-[31px] top-1 w-4 h-4 bg-[#FFCC00] rounded-sm border-4 border-white shadow-md"></div>
+                          <div className="text-xs text-gray-500 font-semibold flex items-center gap-2 mb-1">
+                            <span>{item.tanggal}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 text-gray-600 font-bold">
+                              <Clock size={13} /> {item.jam}
+                            </span>
+                          </div>
+                          <div className="text-base font-bold text-gray-900">
+                            {item.keterangan}
+                          </div>
                         </div>
-                        <div className="text-base font-bold text-gray-900">
-                          {item.keterangan}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 border border-dashed border-gray-300 rounded-sm bg-gray-50">
+                      <span className="text-sm font-semibold text-gray-500">Belum ada pembaruan status pengiriman</span>
+                    </div>
+                  )}
 
                   <button
                     onClick={() => setModalBuka(false)}

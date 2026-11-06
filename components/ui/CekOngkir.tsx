@@ -140,7 +140,7 @@ const CekOngkir = () => {
     if (!berat.trim() || !kotaAsal.trim() || !kotaTujuan.trim()) {
       Swal.fire({
         title: "Kolom Belum Lengkap",
-        text: "Mohon isi Berat Barang, Kota Asal, dan Kota Tujuan terlebih dahulu!",
+        text: "Mohon isi Total Koli, Kota Asal, dan Kota Tujuan terlebih dahulu!",
         icon: "warning",
         confirmButtonColor: "#FFCC00",
         color: "#1f2937",
@@ -176,7 +176,7 @@ const CekOngkir = () => {
 
       const formattedData: HasilOngkir[] = data.layanan.map((item: any) => ({
         layanan: item.nama,
-        estimasi: item.estimasi,
+        estimasi: item.estimasi || "2-3 Hari Kerja",
         harga: `Rp ${item.tarif.toLocaleString("id-ID")}`,
         rute: `${item.kota_asal} → ${item.kota_tujuan}`,
       }));
@@ -212,7 +212,7 @@ const CekOngkir = () => {
           Cek Biaya Ongkos Kirim Paket
         </h2>
         <p className="text-gray-300 text-sm md:text-base mt-1">
-          Masukkan Kota asal, Kota tujuan, dan berat pengiriman Anda.
+          Masukkan Kota asal, Kota tujuan, dan total koli pengiriman Anda.
         </p>
       </div>
 
@@ -220,7 +220,7 @@ const CekOngkir = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-white text-xs font-bold mb-2">
-              Berat Barang (Kg)
+              Total Koli
             </label>
             <div className="flex w-full shadow-sm">
               <div className="bg-yellow-400 text-black px-3.5 flex items-center justify-center rounded-l-sm">
@@ -272,13 +272,18 @@ const CekOngkir = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
             className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-xs"
           >
             <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 300,
+              }}
               className="bg-white rounded-sm max-w-lg w-full p-6 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button
@@ -305,9 +310,9 @@ const CekOngkir = () => {
                       {ruteTunggal ?? `${kotaAsal} → ${kotaTujuan}`}
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">
-                      Estimasi Berat:{" "}
+                      Estimasi Koli:{" "}
                       <span className="font-bold text-gray-800">
-                        {berat} Kg
+                        {berat} Koli
                       </span>
                     </p>
                   </div>

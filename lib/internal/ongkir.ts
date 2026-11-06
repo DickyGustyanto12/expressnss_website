@@ -22,9 +22,6 @@ export type HasilOngkir =
   | { status: "tujuan-tidak-ditemukan"; saran: string[] }
   | { status: "rute-tidak-ada"; asal: string; tujuan: string };
 
-export const estimasiLayanan = (layanan: string) =>
-  layanan === "REGULER" ? "3-5 Hari" : "1-2 Hari";
-
 export async function ambilDaftarKota(): Promise<DaftarKota> {
   const [asalRows] = await pool.query<RowDataPacket[]>(
     "SELECT DISTINCT kota_asal FROM tarif_ongkir ORDER BY kota_asal ASC",
@@ -62,10 +59,15 @@ export async function hitungOngkir(
     };
   }
 
+  // Query menggunakan LEFT JOIN ke tabel layanan_estimasi agar estimasi hari sinkron dengan database
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT * FROM tarif_ongkir
-     WHERE kota_asal IN (?) AND kota_tujuan IN (?)
-     ORDER BY kota_asal ASC, kota_tujuan ASC, layanan DESC`,
+    `SELECT 
+       t.*, 
+       COALESCE(le.estimasi, '2-3 Hari Kerja') AS estimasi_hari
+     FROM tarif_ongkir t
+     LEFT JOIN layanan_estimasi le ON t.layanan = le.nama_layanan
+     WHERE t.kota_asal IN (?) AND t.kota_tujuan IN (?)
+     ORDER BY t.kota_asal ASC, t.kota_tujuan ASC, t.layanan DESC`,
     [asalCocok.map((k) => k.nama), tujuanCocok.map((k) => k.nama)],
   );
 
@@ -82,7 +84,7 @@ export async function hitungOngkir(
     berat,
     layanan: rows.map((item) => ({
       nama: item.layanan,
-      estimasi: estimasiLayanan(item.layanan),
+      estimasi: item.estimasi_hari, // Mengambil langsung dari kolom hasil JOIN database
       hargaPerKg: Number(item.harga_ongkir),
       tarif: Number(item.harga_ongkir) * berat,
       kota_asal: item.kota_asal,
