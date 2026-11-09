@@ -7,13 +7,16 @@ const agenTracking = new https.Agent({
 });
 
 const urlTracking = () =>
-  new URL(process.env.TRACKING_API_URL || "https://172.16.1.57/ksapisvr");
+  new URL(process.env.TRACKING_API_URL || "https://nsparts.co.id/ksapisvr");
 
 export function mintaTracking(nomorResi: string): Promise<unknown> {
   const url = urlTracking();
+  
+  // PERBAIKAN UTAMA: Mengubah 'api_tracking' menjadi 'api_webdlp'
   const body = JSON.stringify({
-    api_tracking: [{ Request: "MINTATRACKING", Nobuk: nomorResi }],
+    api_webdlp: [{ Request: "MINTATRACKING", Nobuk: nomorResi }],
   });
+  
   const modul = url.protocol === "http:" ? http : https;
 
   return new Promise((resolve, reject) => {
@@ -29,37 +32,32 @@ export function mintaTracking(nomorResi: string): Promise<unknown> {
         },
         agent: url.protocol === "https:" ? agenTracking : undefined,
         timeout: BATAS_WAKTU_MS,
+        insecureHTTPParser: true,
       },
       (res) => {
         let data = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
-          // Tangkap error jika HTTP status code 300 ke atas (termasuk 502, 404, dll)
           if (!res.statusCode || res.statusCode >= 300) {
-            console.error(
-              `[TRACKING] Server merespons HTTP ${res.statusCode}. RAW DATA:`,
-              data.substring(0, 300)
-            );
-            reject(
-              new Error(
-                `Server internal merespons dengan status: ${res.statusCode}`,
-              ),
-            );
+            reject(new Error(`Server internal merespons dengan status: ${res.statusCode}`));
             return;
           }
           
           try {
-            // PERBAIKAN UTAMA: Bersihkan karakter Enter/Newline asli yang merusak format JSON
-            const dataBersih = data.replace(/[\r\n\t]+/g, " ");
+            const dataBersih = data.replace(/[\r\n\t]+/g, " ").trim();
             
+            // Cek apakah balasan BUKAN format JSON (misal teks "Maaf...")
+            if (!dataBersih.startsWith("{") && !dataBersih.startsWith("[")) {
+              console.warn("[TRACKING] Peringatan: Server pusat membalas dengan teks biasa:", dataBersih);
+              reject(new Error(`Layanan pusat merespons: ${dataBersih}`));
+              return;
+            }
+
             resolve(JSON.parse(dataBersih));
           } catch (err) {
-            console.error(
-              "[TRACKING] Gagal parse JSON. RAW DATA:",
-              data.substring(0, 500)
-            );
-            reject(new Error("Respons server tracking bukan JSON"));
+            console.error("[TRACKING] Gagal parse JSON. RAW DATA:", data.substring(0, 500));
+            reject(new Error("Respons server tracking rusak."));
           }
         });
       },

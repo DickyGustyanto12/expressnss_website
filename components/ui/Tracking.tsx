@@ -115,28 +115,42 @@ const Tracking = () => {
             keteranganText = "Barang sedang dikirim ke alamat tujuan penerima.";
             rank = 4;
           } else if (aktData === "kirim" || aktData === "473" || aktData === "461") {
-            const ketAsli = item.Keterangan ? String(item.Keterangan).trim() : "";
-            keteranganText = ketAsli && ketAsli.length > 1
-              ? `Barang telah diterima oleh: ${ketAsli}`
-              : "Barang telah diterima dengan baik.";
+            
+            let namaPenerima = item.Nama ? String(item.Nama).trim() : "";
+            
+            if (!namaPenerima || namaPenerima.toLowerCase() === "kirim" || namaPenerima.length <= 1) {
+              namaPenerima = dataMaster?.NamaPenerima ? String(dataMaster.NamaPenerima).trim() : "";
+            }
+            
+            if (namaPenerima && namaPenerima !== "-") {
+              keteranganText = `Barang telah diterima oleh: ${namaPenerima}`;
+            } else {
+              keteranganText = "Barang telah diterima dengan baik.";
+            }
+              
             rank = 5;
+            
+          } else if (aktData === "pod") {
+            
+            // PERBAIKAN: Menangkap status POD dan menampilkan nilainya langsung
+            const ketAsli = item.Keterangan ? String(item.Keterangan).trim() : "";
+            keteranganText = ketAsli ? ketAsli : "Bukti pengiriman (POD) telah dicatat.";
+            rank = 5;
+            
           } else if (aktData === "balik") {
             keteranganText = "Pengiriman barang ke tujuan mengalami kendala operasional.";
             rank = 6;
           } else {
-            // Drop data di luar status yang ditentukan
             isValid = false;
           }
 
           const tanggal = item.Tanggal || "";
           const jam = item.Jam || "";
 
-          // Membuat kunci unik (Contoh: "Barang sedang disortir.-2024-11-05-14:30:00")
           const kunciUnik = `${keteranganText}-${tanggal}-${jam}`;
 
-          // Cek apakah kombinasi Keterangan, Tanggal, dan Jam ini sudah ada di Set
           if (isValid && !dataSudahAda.has(kunciUnik)) {
-            dataSudahAda.add(kunciUnik); // Tandai bahwa kombinasi ini sudah dimasukkan
+            dataSudahAda.add(kunciUnik);
             acc.push({
               tanggal: tanggal,
               jam: jam,
@@ -149,13 +163,20 @@ const Tracking = () => {
           return acc;
         }, []);
 
-        // Mengurutkan riwayat berdasarkan urutan rank (1 -> 6)
+        // Mengurutkan riwayat berdasarkan Tanggal dan Jam kejadian
         parsedRiwayat.sort((a: any, b: any) => {
+          const waktuA = new Date(`${a.tanggal}T${a.jam}`).getTime();
+          const waktuB = new Date(`${b.tanggal}T${b.jam}`).getTime();
+          
+          if (!isNaN(waktuA) && !isNaN(waktuB) && waktuA !== waktuB) {
+            return waktuA - waktuB;
+          }
+          
           if (a._rank !== b._rank) return a._rank - b._rank;
           return a._originalIndex - b._originalIndex;
         });
 
-        // Teks untuk badge hijau di atas (mengambil status terakhir)
+        // Teks untuk badge hijau di atas
         const statusKeseluruhan = parsedRiwayat.length > 0 
           ? parsedRiwayat[parsedRiwayat.length - 1].keterangan 
           : "Resi telah diterbitkan";
@@ -399,7 +420,7 @@ const Tracking = () => {
                         </span>
 
                         {hasilTracking.penerima.alamat && (
-                          <span className="text-xs text-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.penerima.alamat}>
+                          <span className="text-xs tex  t-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.penerima.alamat}>
                             {hasilTracking.penerima.alamat}
                           </span>
                         )}
