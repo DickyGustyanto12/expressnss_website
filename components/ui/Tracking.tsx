@@ -6,11 +6,12 @@ import {
   Clock,
   User,
   Loader2,
-  CheckCircle2,
   ShieldCheck,
   AlertCircle,
   Phone,
   Mail,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +29,17 @@ const Tracking = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [captchaError, setCaptchaError] = useState("");
   const [captchaKey, setCaptchaKey] = useState(0);
+
+  // State untuk animasi tombol salin AWB
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleSalinAwb = (awbText: string) => {
+    navigator.clipboard.writeText(awbText);
+    setIsCopied(true);
+    setTimeout(() => {
+      setIsCopied(false);
+    }, 2000);
+  };
 
   const handleCari = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,115 +100,153 @@ const Tracking = () => {
       setIsModalLoading(false);
 
       if (data && data.Detail && data.Detail.length > 0) {
-        const dataMaster = data.Master && data.Master.length > 0 ? data.Master[0] : null;
+        const dataMaster =
+          data.Master && data.Master.length > 0 ? data.Master[0] : null;
 
-        // Set untuk menyimpan kombinasi (Status + Tanggal + Jam) yang sudah pernah diproses
         const dataSudahAda = new Set();
+        let sudahAdaKirim = false;
 
-        // PARSER, FILTER & DEDUPLIKASI CUSTOM
-        const parsedRiwayat = data.Detail.reduce((acc: any[], item: any, index: number) => {
-          const aktData = String(item.Aktdata || item.aktdata || "").toLowerCase();
-          const aktType = String(item.Akttype || item.akttype || "").toLowerCase();
+        const parsedRiwayat = data.Detail.reduce(
+          (acc: any[], item: any, index: number) => {
+            const aktData = String(
+              item.Aktdata || item.aktdata || "",
+            ).toLowerCase();
+            const aktType = String(
+              item.Akttype || item.akttype || "",
+            ).toLowerCase();
 
-          let keteranganText = "";
-          let rank = 0;
-          let isValid = true; 
+            const ketAsli = item.Keterangan
+              ? String(item.Keterangan).trim()
+              : "";
 
-          if (aktData === "jual" || aktType === "jual") {
-            keteranganText = "Resi telah diterbitkan.";
-            rank = 1;
-          } else if (aktData === "pstjl" || aktData === "603") {
-            keteranganText = "Barang sedang disiapkan.";
-            rank = 2;
-          } else if (aktData === "trmexp2" || aktData === "trmepxp2" || aktData === "458" || aktData === "470") {
-            keteranganText = "Barang sedang disortir.";
-            rank = 3;
-          } else if (aktData === "tpenugasan" || aktData === "472" || aktData === "460") {
-            keteranganText = "Barang sedang dikirim ke alamat tujuan penerima.";
-            rank = 4;
-          } else if (aktData === "kirim" || aktData === "473" || aktData === "461") {
-            
-            let namaPenerima = item.Nama ? String(item.Nama).trim() : "";
-            
-            if (!namaPenerima || namaPenerima.toLowerCase() === "kirim" || namaPenerima.length <= 1) {
-              namaPenerima = dataMaster?.NamaPenerima ? String(dataMaster.NamaPenerima).trim() : "";
+            if (
+              aktData.includes("isi_bensin") ||
+              aktType.includes("isi_bensin") ||
+              ketAsli.toLowerCase().includes("isi_bensin")
+            ) {
+              return acc;
             }
-            
-            if (namaPenerima && namaPenerima !== "-") {
-              keteranganText = `Barang telah diterima oleh: ${namaPenerima}`;
+
+            if (ketAsli.toLowerCase() === "kirim") {
+              return acc;
+            }
+
+            let keteranganText = "";
+            let rank = 0;
+            let isValid = true;
+
+            if (aktData === "jual" || aktType === "jual") {
+              keteranganText = "Resi telah di terbitkan.";
+              rank = 1;
+            } else if (aktData === "pstjl" || aktData === "603") {
+              keteranganText = "barang sedang disiapkan";
+              rank = 2;
+            } else if (
+              aktData === "trmexp2" ||
+              aktData === "trmepxp2" ||
+              aktData === "458" ||
+              aktData === "470"
+            ) {
+              keteranganText = ketAsli || "Barang sedang disortir";
+              rank = 3;
+            } else if (
+              aktData === "tpenugasan" ||
+              aktData === "472" ||
+              aktData === "460"
+            ) {
+              if (ketAsli.toLowerCase().includes("kirim")) {
+                keteranganText =
+                  "Paket sedang diperjalanan menuju ke alamat penerima.";
+              } else {
+                keteranganText = ketAsli || "Barang dalam proses penugasan";
+              }
+              rank = 4;
+            } else if (
+              aktData === "kirim" ||
+              aktData === "473" ||
+              aktData === "461"
+            ) {
+              if (sudahAdaKirim) {
+                return acc;
+              }
+              sudahAdaKirim = true;
+              keteranganText = ketAsli || "Barang dalam proses pengiriman";
+              rank = 5;
+            } else if (aktData === "pod") {
+              keteranganText = ketAsli || "Bukti pengiriman (POD) dicatat";
+              rank = 6;
+            } else if (aktData === "balik") {
+              keteranganText = ketAsli || "Pengiriman mengalami kendala";
+              rank = 7;
             } else {
-              keteranganText = "Barang telah diterima dengan baik.";
+              isValid = false;
             }
-              
-            rank = 5;
-            
-          } else if (aktData === "pod") {
-            
-            // PERBAIKAN: Menangkap status POD dan menampilkan nilainya langsung
-            const ketAsli = item.Keterangan ? String(item.Keterangan).trim() : "";
-            keteranganText = ketAsli ? ketAsli : "Bukti pengiriman (POD) telah dicatat.";
-            rank = 5;
-            
-          } else if (aktData === "balik") {
-            keteranganText = "Pengiriman barang ke tujuan mengalami kendala operasional.";
-            rank = 6;
-          } else {
-            isValid = false;
-          }
 
-          const tanggal = item.Tanggal || "";
-          const jam = item.Jam || "";
+            if (keteranganText) {
+              keteranganText = keteranganText.toUpperCase();
+            }
 
-          const kunciUnik = `${keteranganText}-${tanggal}-${jam}`;
+            const tanggal = item.Tanggal || "";
+            const jam = item.Jam || "";
 
-          if (isValid && !dataSudahAda.has(kunciUnik)) {
-            dataSudahAda.add(kunciUnik);
-            acc.push({
-              tanggal: tanggal,
-              jam: jam,
-              keterangan: keteranganText,
-              _rank: rank,
-              _originalIndex: index
-            });
-          }
-          
-          return acc;
-        }, []);
+            let kunciUnik = `${keteranganText}-${tanggal}-${jam}`;
+            if (aktData === "pod") {
+              const teksNormal = keteranganText.replace(/[^A-Z0-9]/g, "");
+              kunciUnik = `POD-${teksNormal}`;
+            }
 
-        // Mengurutkan riwayat berdasarkan Tanggal dan Jam kejadian
+            if (isValid && !dataSudahAda.has(kunciUnik)) {
+              dataSudahAda.add(kunciUnik);
+              acc.push({
+                tanggal: tanggal,
+                jam: jam,
+                keterangan: keteranganText,
+                _rank: rank,
+                _originalIndex: index,
+              });
+            }
+
+            return acc;
+          },
+          [],
+        );
+
         parsedRiwayat.sort((a: any, b: any) => {
           const waktuA = new Date(`${a.tanggal}T${a.jam}`).getTime();
           const waktuB = new Date(`${b.tanggal}T${b.jam}`).getTime();
-          
+
           if (!isNaN(waktuA) && !isNaN(waktuB) && waktuA !== waktuB) {
-            return waktuA - waktuB;
+            return waktuB - waktuA;
           }
-          
-          if (a._rank !== b._rank) return a._rank - b._rank;
-          return a._originalIndex - b._originalIndex;
+
+          if (a._originalIndex !== b._originalIndex) {
+            return b._originalIndex - a._originalIndex;
+          }
+
+          return b._rank - a._rank;
         });
 
-        // Teks untuk badge hijau di atas
-        const statusKeseluruhan = parsedRiwayat.length > 0 
-          ? parsedRiwayat[parsedRiwayat.length - 1].keterangan 
-          : "Resi telah diterbitkan";
+        const statusKeseluruhan =
+          parsedRiwayat.length > 0
+            ? parsedRiwayat[0].keterangan
+            : "RESI TELAH DITERBITKAN";
 
         setHasilTracking({
           awb: kataKunci.trim(),
           status: statusKeseluruhan,
-          pengirim: { 
+          pengirim: {
             nama: dataMaster?.NamaPengirim || "Tidak Diketahui",
             alamat: dataMaster?.AlamatPengirim || "",
             noHp: dataMaster?.NoHpPengirim || "",
             email: dataMaster?.EmailPengirim || "",
           },
-          penerima: { 
+          penerima: {
             nama: dataMaster?.NamaPenerima || "-",
             alamat: dataMaster?.AlamatPenerima || "",
             noHp: dataMaster?.NoHpPenerima || "",
             email: dataMaster?.EmailPenerima || "",
           },
-          riwayat: parsedRiwayat, 
+          riwayat: parsedRiwayat,
         });
         setErrorMsg("");
       } else {
@@ -352,14 +402,20 @@ const Tracking = () => {
                 </div>
               ) : hasilTracking ? (
                 <div>
+                  {/* PERBAIKAN: Menambahkan tombol salin di sebelah badge AWB */}
                   <div className="flex flex-wrap items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                    <span className="bg-[#FFCC00] text-gray-950 font-extrabold text-sm px-3.5 py-1.5 rounded-sm shadow-xs">
-                      AWB: {hasilTracking.awb}
-                    </span>
-                    <span className="bg-green-100 text-green-800 font-extrabold text-sm px-3.5 py-1.5 rounded-sm flex items-center gap-1.5 shadow-xs">
-                      <CheckCircle2 size={16} />
-                      {hasilTracking.status}
-                    </span>
+                    <div className="inline-flex items-center bg-[#FFCC00] text-gray-950 font-extrabold text-sm rounded-sm shadow-xs overflow-hidden">
+                      <span className="px-3.5 py-1.5">
+                        AWB: {hasilTracking.awb}
+                      </span>
+                      <button
+                        onClick={() => handleSalinAwb(hasilTracking.awb)}
+                        title="Salin AWB"
+                        className="bg-yellow-500 hover:bg-yellow-600 text-gray-950 px-2.5 py-1.5 transition-colors cursor-pointer flex items-center justify-center border-l border-yellow-400"
+                      >
+                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </div>
                   </div>
 
                   <h3 className="text-xl font-extrabold text-gray-900 mb-4">
@@ -373,34 +429,49 @@ const Tracking = () => {
                         <User size={22} />
                       </div>
                       <div className="w-full">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                          Pengirim
+                        <span className="text-xs font-extrabold text-gray-700 uppercase tracking-wider block mb-1">
+                          PENGIRIM
                         </span>
-                        <span className="text-sm font-extrabold text-gray-900 block">
+                        <span className="text-sm font-extrabold text-gray-950 block">
                           {hasilTracking.pengirim.nama}
                         </span>
-                        
+
                         {hasilTracking.pengirim.alamat && (
-                          <span className="text-xs text-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.pengirim.alamat}>
+                          <span
+                            className="text-xs text-gray-800 font-semibold mt-1.5 block pr-2 leading-relaxed"
+                            title={hasilTracking.pengirim.alamat}
+                          >
                             {hasilTracking.pengirim.alamat}
                           </span>
                         )}
 
-                        {/* Kontak Pengirim */}
-                        {(hasilTracking.pengirim.noHp || (hasilTracking.pengirim.email && hasilTracking.pengirim.email !== "000000")) && (
+                        {(hasilTracking.pengirim.noHp ||
+                          (hasilTracking.pengirim.email &&
+                            hasilTracking.pengirim.email !== "000000")) && (
                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
-                            {hasilTracking.pengirim.noHp && hasilTracking.pengirim.noHp !== "-" && (
-                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                                <Phone size={13} className="text-gray-400 shrink-0" />
-                                <span>{hasilTracking.pengirim.noHp}</span>
-                              </div>
-                            )}
-                            {hasilTracking.pengirim.email && hasilTracking.pengirim.email !== "-" && hasilTracking.pengirim.email !== "000000" && (
-                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                                <Mail size={13} className="text-gray-400 shrink-0" />
-                                <span className="truncate">{hasilTracking.pengirim.email}</span>
-                              </div>
-                            )}
+                            {hasilTracking.pengirim.noHp &&
+                              hasilTracking.pengirim.noHp !== "-" && (
+                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                  <Phone
+                                    size={14}
+                                    className="text-gray-700 shrink-0"
+                                  />
+                                  <span>{hasilTracking.pengirim.noHp}</span>
+                                </div>
+                              )}
+                            {hasilTracking.pengirim.email &&
+                              hasilTracking.pengirim.email !== "-" &&
+                              hasilTracking.pengirim.email !== "000000" && (
+                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                  <Mail
+                                    size={14}
+                                    className="text-gray-700 shrink-0"
+                                  />
+                                  <span className="truncate">
+                                    {hasilTracking.pengirim.email}
+                                  </span>
+                                </div>
+                              )}
                           </div>
                         )}
                       </div>
@@ -412,34 +483,49 @@ const Tracking = () => {
                         <User size={22} />
                       </div>
                       <div className="w-full">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                          Penerima
+                        <span className="text-xs font-extrabold text-gray-700 uppercase tracking-wider block mb-1">
+                          PENERIMA
                         </span>
-                        <span className="text-sm font-extrabold text-gray-900 block">
+                        <span className="text-sm font-extrabold text-gray-950 block">
                           {hasilTracking.penerima.nama}
                         </span>
 
                         {hasilTracking.penerima.alamat && (
-                          <span className="text-xs tex  t-gray-500 mt-1 block pr-2 leading-relaxed" title={hasilTracking.penerima.alamat}>
+                          <span
+                            className="text-xs text-gray-800 font-semibold mt-1.5 block pr-2 leading-relaxed"
+                            title={hasilTracking.penerima.alamat}
+                          >
                             {hasilTracking.penerima.alamat}
                           </span>
                         )}
 
-                        {/* Kontak Penerima */}
-                        {(hasilTracking.penerima.noHp || (hasilTracking.penerima.email && hasilTracking.penerima.email !== "000000")) && (
+                        {(hasilTracking.penerima.noHp ||
+                          (hasilTracking.penerima.email &&
+                            hasilTracking.penerima.email !== "000000")) && (
                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
-                            {hasilTracking.penerima.noHp && hasilTracking.penerima.noHp !== "-" && (
-                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                                <Phone size={13} className="text-gray-400 shrink-0" />
-                                <span>{hasilTracking.penerima.noHp}</span>
-                              </div>
-                            )}
-                            {hasilTracking.penerima.email && hasilTracking.penerima.email !== "-" && hasilTracking.penerima.email !== "000000" && (
-                              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                                <Mail size={13} className="text-gray-400 shrink-0" />
-                                <span className="truncate">{hasilTracking.penerima.email}</span>
-                              </div>
-                            )}
+                            {hasilTracking.penerima.noHp &&
+                              hasilTracking.penerima.noHp !== "-" && (
+                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                  <Phone
+                                    size={14}
+                                    className="text-gray-700 shrink-0"
+                                  />
+                                  <span>{hasilTracking.penerima.noHp}</span>
+                                </div>
+                              )}
+                            {hasilTracking.penerima.email &&
+                              hasilTracking.penerima.email !== "-" &&
+                              hasilTracking.penerima.email !== "000000" && (
+                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                  <Mail
+                                    size={14}
+                                    className="text-gray-700 shrink-0"
+                                  />
+                                  <span className="truncate">
+                                    {hasilTracking.penerima.email}
+                                  </span>
+                                </div>
+                              )}
                           </div>
                         )}
                       </div>
@@ -447,30 +533,45 @@ const Tracking = () => {
                   </div>
 
                   <h4 className="text-base font-extrabold text-gray-900 mb-4 uppercase tracking-wider">
-                    Riwayat Perjalanan
+                    LACAK PAKET
                   </h4>
 
                   {hasilTracking.riwayat.length > 0 ? (
                     <div className="space-y-6 border-l-2 border-yellow-400 pl-6 ml-3 my-4">
-                      {hasilTracking.riwayat.map((item: any, idx: number) => (
-                        <div key={idx} className="relative">
-                          <div className="absolute -left-[31px] top-1 w-4 h-4 bg-[#FFCC00] rounded-sm border-4 border-white shadow-md"></div>
-                          <div className="text-xs text-gray-500 font-semibold flex items-center gap-2 mb-1">
-                            <span>{item.tanggal}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-gray-600 font-bold">
-                              <Clock size={13} /> {item.jam}
-                            </span>
+                      {hasilTracking.riwayat.map((item: any, idx: number) => {
+                        const isTerbaru = idx === 0;
+
+                        return (
+                          <div key={idx} className="relative">
+                            <div className="absolute -left-[31px] top-1 w-4 h-4 bg-[#FFCC00] rounded-sm border-4 border-white shadow-md"></div>
+
+                            <div className="text-xs text-gray-500 font-semibold flex items-center gap-2 mb-1">
+                              <span>{item.tanggal}</span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-gray-600 font-bold">
+                                <Clock size={13} /> {item.jam}
+                              </span>
+                            </div>
+
+                            {/* PERBAIKAN: Status terbaru bold pekat, status terlewati menggunakan text-gray-700 agar tetap jelas terlihat */}
+                            <div
+                              className={`text-base ${
+                                isTerbaru
+                                  ? "font-black text-gray-950"
+                                  : "font-medium text-gray-700"
+                              }`}
+                            >
+                              {item.keterangan}
+                            </div>
                           </div>
-                          <div className="text-base font-bold text-gray-900">
-                            {item.keterangan}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-6 border border-dashed border-gray-300 rounded-sm bg-gray-50">
-                      <span className="text-sm font-semibold text-gray-500">Belum ada pembaruan status pengiriman</span>
+                      <span className="text-sm font-semibold text-gray-500">
+                        Belum ada pembaruan status pengiriman
+                      </span>
                     </div>
                   )}
 
