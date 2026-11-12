@@ -1,50 +1,40 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/internal/db";
-import type { RowDataPacket } from "mysql2";
-
-const BATAS_WAKTU_MS = 3000;
-
-async function cekDatabase(): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const habisWaktu = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error("Health check database timeout")),
-      BATAS_WAKTU_MS,
-    );
-  });
-
-  try {
-    const [rows] = await Promise.race([
-      pool.query<RowDataPacket[]>({
-        sql: "SELECT 1 AS ok",
-        timeout: BATAS_WAKTU_MS,
-      }),
-      habisWaktu,
-    ]);
-    return Number(rows[0]?.ok) === 1;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-const respons = (status: "ok" | "error", httpStatus: 200 | 503) =>
-  NextResponse.json(
-    { status, timestamp: new Date().toISOString() },
-    {
-      status: httpStatus,
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    },
-  );
 
 export async function GET() {
+  const startTime = Date.now();
+  const result: Record<string, any> = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: {},
+  };
+
   try {
-    if (await cekDatabase()) return respons("ok", 200);
-    console.error("[HEALTH] Database tidak mengembalikan hasil yang valid");
-  } catch (error) {
-    console.error(
-      "[HEALTH] Pemeriksaan gagal:",
-      error instanceof Error ? error.message : error,
-    );
+    const t0 = Date.now();
+    await pool.query("SELECT 1");
+    const latency = Date.now() - t0;
+
+    result.services.mysql = {
+      status: "up",
+      latency_ms: latency,
+    };
+  } catch (error: any) {
+    result.status = "error";
+    result.services.mysql = {
+      status: "down",
+      error: error.message,
+    };
   }
-  return respons("error", 503);
+
+  result.services.socket = {
+    status: "running",
+    note: "Socket.IO menempel di HTTP server yang sama",
+  };
+
+  result.response_time_ms = Date.now() - startTime;
+
+  const httpStatus = result.status === "ok" ? 200 : 503;
+
+  return NextResponse.json(result, { status: httpStatus });
 }

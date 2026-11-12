@@ -438,7 +438,7 @@ const Tracking = () => {
 
                         {hasilTracking.pengirim.alamat && (
                           <span
-                            className="text-xs text-gray-800 font-semibold mt-1.5 block pr-2 leading-relaxed"
+                            className="text-xs text-black  font-normal mt-1.5 block pr-2 leading-relaxed"
                             title={hasilTracking.pengirim.alamat}
                           >
                             {hasilTracking.pengirim.alamat}
@@ -451,7 +451,7 @@ const Tracking = () => {
                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
                             {hasilTracking.pengirim.noHp &&
                               hasilTracking.pengirim.noHp !== "-" && (
-                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                <div className="flex items-center gap-2 text-xs text-gray-900 font-normal">
                                   <Phone
                                     size={14}
                                     className="text-gray-700 shrink-0"
@@ -486,13 +486,13 @@ const Tracking = () => {
                         <span className="text-xs font-extrabold text-gray-700 uppercase tracking-wider block mb-1">
                           PENERIMA
                         </span>
-                        <span className="text-sm font-extrabold text-gray-950 block">
+                        <span className="text-sm font-extrabold text-black block">
                           {hasilTracking.penerima.nama}
                         </span>
 
                         {hasilTracking.penerima.alamat && (
                           <span
-                            className="text-xs text-gray-800 font-semibold mt-1.5 block pr-2 leading-relaxed"
+                            className="text-xs text-black font-normal mt-1.5 block pr-2 leading-relaxed"
                             title={hasilTracking.penerima.alamat}
                           >
                             {hasilTracking.penerima.alamat}
@@ -505,10 +505,10 @@ const Tracking = () => {
                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
                             {hasilTracking.penerima.noHp &&
                               hasilTracking.penerima.noHp !== "-" && (
-                                <div className="flex items-center gap-2 text-xs text-gray-900 font-extrabold">
+                                <div className="flex items-center gap-2 text-xs text-black font-extrabold">
                                   <Phone
                                     size={14}
-                                    className="text-gray-700 shrink-0"
+                                    className="text-black font-normal shrink-0"
                                   />
                                   <span>{hasilTracking.penerima.noHp}</span>
                                 </div>
@@ -553,12 +553,11 @@ const Tracking = () => {
                               </span>
                             </div>
 
-                            {/* PERBAIKAN: Status terbaru bold pekat, status terlewati menggunakan text-gray-700 agar tetap jelas terlihat */}
                             <div
                               className={`text-base ${
                                 isTerbaru
-                                  ? "font-black text-gray-950"
-                                  : "font-medium text-gray-700"
+                                  ? "font-bold text-gray-950"
+                                  : "font-normal text-gray-700"
                               }`}
                             >
                               {item.keterangan}
